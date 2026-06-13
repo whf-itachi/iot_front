@@ -496,7 +496,7 @@ async function handleExportExcel() {
 .flatness-page { padding: 0; max-width: 860px; }
 
 .page-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 22px; }
-.page-header h2 { margin: 0; font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #0ea5e9, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.page-header h2 { margin: 0; font-size: 22px; font-weight: 700; background: linear-gradient(135deg, #0ea5e9, #38bdf8); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
 .header-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .search-group { display: flex; gap: 6px; }
 .search-input {

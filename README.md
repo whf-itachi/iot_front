@@ -37,6 +37,7 @@ iot_front/
 │       ├── BigScreen.vue    #   数据大屏
 │       ├── DeviceList.vue   #   设备列表
 │       ├── DeviceDetail.vue #   设备详情
+
 │       ├── FlatnessData.vue #   平整度数据
 │       ├── BladeProcessLog.vue#  叶片加工过程日志
 │       ├── TenantManagement.vue# 租户管理
@@ -96,7 +97,6 @@ npm run build
 |------|------|------|
 | `/login` | Login | 登录页 |
 | `/` | Dashboard | 仪表盘首页 |
-| `/bigscreen` | BigScreen | 数据可视化大屏 |
 | `/devices` | DeviceList | 设备列表 |
 | `/devices/:id` | DeviceDetail | 设备详情 |
 | `/flatness` | FlatnessData | 平整度数据 |
