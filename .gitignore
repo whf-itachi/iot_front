@@ -1,0 +1,39 @@
+# 依赖包（核心解决你刚才node_modules刷屏问题）
+node_modules/
+
+# 构建产物
+dist/
+build/
+out/
+
+# 本地环境配置、缓存
+.vite/
+.npm/
+.eslintcache
+.pnp
+.pnp.js
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 编辑器、系统文件
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# 本地测试Excel（不需要提交的测试文件）
+*.xlsx
+*.xls
+
+# 环境变量（敏感配置）
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
