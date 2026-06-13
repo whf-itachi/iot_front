@@ -98,6 +98,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { API_BASE } from '../api'
 
 const MILLISECOND_THRESHOLD = 1e12
 const auth = useAuthStore()
@@ -152,7 +153,7 @@ async function handleSearch() {
     const bid = searchBladeId.value.trim()
     const params = new URLSearchParams({ username: auth.user?.username || '' })
     if (bid) params.set('bladeId', bid)
-    const res = await fetch(`/api/iot/flatness/query?${params}`)
+    const res = await fetch(`${API_BASE}/iot/flatness/query?${params}`)
     const data = await res.json()
     if (data.success && data.results?.length) {
       results.value = data.results

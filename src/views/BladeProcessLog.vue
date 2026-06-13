@@ -102,6 +102,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { API_BASE } from '../api'
 
 const MILLISECOND_THRESHOLD = 1e12
 const auth = useAuthStore()
@@ -135,7 +136,7 @@ async function handleSearch() {
   loading.value = true; searched.value = true; results.value = []; errorMsg.value = ''
   try {
     const params = new URLSearchParams({ bladeId: bid, username: auth.user?.username || '' })
-    const res = await fetch(`/api/iot/process-log/query?${params}`)
+    const res = await fetch(`${API_BASE}/iot/process-log/query?${params}`)
     const data = await res.json()
     if (data.success && data.results?.length) {
       results.value = data.results

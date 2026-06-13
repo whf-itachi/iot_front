@@ -59,7 +59,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import api from '../api'
+import api, { API_BASE } from '../api'
 
 const auth = useAuthStore()
 const stats = ref({ totalDevices: 35, onlineDevices: 0, offlineDevices: 35, avgSpindle: '2,005' })
@@ -87,7 +87,7 @@ onMounted(async () => {
   // 主轴转速：超管用全量实时数据，非超管不显示
   if (auth.isSuperAdmin) {
     try {
-      const speedRes = await fetch('/api/iot/spindle/trend')
+      const speedRes = await fetch(`${API_BASE}/iot/spindle/trend`)
       if (speedRes.ok) {
         const speedData = await speedRes.json()
         if (speedData.length) {
