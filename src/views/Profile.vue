@@ -170,15 +170,15 @@ onMounted(loadTree)
 
 <style scoped>
 .role-badge { padding: 3px 12px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-.role-superadmin { background: #fef3c7; color: #b45309; }
-.role-admin { background: #dbeafe; color: #1d4ed8; }
-.role-employee { background: #f1f5f9; color: #64748b; }
+.role-superadmin { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.role-admin { background: var(--color-info-bg); color: var(--color-primary); }
+.role-employee { background: rgba(100,116,139,0.15); color: var(--text-muted); }
 .tree-container { padding: 10px 0; }
 .tree-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
-.tree-connector { color: #94a3b8; font-family: monospace; font-size: 14px; }
-.node-box { display: inline-flex; align-items: center; gap: 12px; padding: 8px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
-.root-box { background: #eff6ff; border-color: #93c5fd; }
-.node-name { font-size: 14px; font-weight: 600; color: #1e293b; }
-.node-role { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: #f1f5f9; color: #64748b; }
-.me-tag { font-size: 10px; color: #0ea5e9; font-weight: 400; margin-left: 2px; }
+.tree-connector { color: var(--text-muted); font-family: monospace; font-size: 14px; }
+.node-box { display: inline-flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--bg-hover); border: 1px solid var(--border-default); border-radius: 8px; }
+.root-box { background: rgba(96,199,243,0.06); border-color: rgba(96,199,243,0.18); }
+.node-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.node-role { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(100,116,139,0.15); color: var(--text-muted); }
+.me-tag { font-size: 10px; color: var(--color-primary); font-weight: 400; margin-left: 2px; }
 </style>

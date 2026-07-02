@@ -28,7 +28,6 @@
           @input="debounceSearch"
         />
       </div>
-      <button class="refresh-btn" @click="handleRefresh" :disabled="loading">刷新</button>
     </div>
 
     <!-- 错误提示 -->
@@ -161,11 +160,6 @@ async function fetchDevices() {
   finally { loading.value = false }
 }
 
-async function handleRefresh() {
-  try { await api.post('/iot/admin/device/syncAll') } catch (e) {}
-  fetchDevices()
-}
-
 function setFilter(val) {
   currentFilter.value = val
   page.value = 1
@@ -201,51 +195,49 @@ onMounted(async () => {
 <style scoped>
 .device-list-page { padding: 0; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-header h2 { font-size: 20px; color: #222; }
-.header-stats { color: #666; font-size: 14px; }
-.header-stats strong { color: #333; font-size: 18px; }
+.page-header h2 { font-size: 20px; color: var(--text-primary); }
+.header-stats { color: var(--text-muted); font-size: 14px; }
+.header-stats strong { color: var(--text-primary); font-size: 18px; }
 
 .filter-bar { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
 .filter-group { display: flex; gap: 6px; align-items: center; }
-.filter-group label { color: #666; font-size: 13px; }
+.filter-group label { color: var(--text-muted); font-size: 13px; }
 .filter-btn {
-  padding: 5px 14px; border: 1px solid #d9d9d9; border-radius: 4px;
-  background: #fff; color: #666; cursor: pointer; font-size: 13px;
+  padding: 5px 14px; border: 1px solid var(--border-default); border-radius: 6px;
+  background: var(--bg-card); color: var(--text-muted); cursor: pointer; font-size: 13px;
+  transition: all 0.2s;
 }
-.filter-btn.active { background: #e6f7ff; border-color: #1890ff; color: #1890ff; }
-.filter-btn:hover { border-color: #1890ff; color: #1890ff; }
+.filter-btn.active { background: var(--color-info-bg); border-color: var(--color-primary); color: var(--color-primary); }
+.filter-btn:hover { border-color: var(--border-focus); color: var(--color-primary); }
 .filter-group input {
-  padding: 6px 12px; border: 1px solid #d9d9d9; border-radius: 4px;
-  background: #fff; color: #333; font-size: 13px; width: 160px;
+  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: 6px;
+  background: var(--bg-input); color: var(--text-primary); font-size: 13px; width: 160px;
 }
-.filter-group input:focus { outline: none; border-color: #1890ff; }
-.refresh-btn {
-  padding: 5px 14px; background: #fff; border: 1px solid #d9d9d9;
-  color: #666; border-radius: 4px; cursor: pointer; font-size: 13px;
-}
-
-.device-table-wrap { background: #fff; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.filter-group input::placeholder { color: var(--text-placeholder); }
+.filter-group input:focus { outline: none; border-color: var(--border-focus); }
+.device-table-wrap { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-card); }
 .device-table { width: 100%; border-collapse: collapse; }
-.device-table th { text-align: left; padding: 12px 16px; font-size: 13px; color: #666; border-bottom: 1px solid #e8e8e8; background: #fafafa; }
-.device-table td { padding: 10px 16px; font-size: 14px; color: #333; border-bottom: 1px solid #f0f0f0; }
-.device-table tr:hover td { background: #fafafa; }
-.device-name a { color: #1890ff; font-weight: 500; text-decoration: none; }
-.device-name a:hover { color: #40a9ff; }
+.device-table th { text-align: left; padding: 12px 16px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid var(--border-default); background: var(--bg-table-header); }
+.device-table td { padding: 10px 16px; font-size: 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); }
+.device-table tr:hover td { background: var(--bg-hover); }
+.device-name a { color: var(--color-primary); font-weight: 500; text-decoration: none; }
+.device-name a:hover { color: var(--color-primary-hover); }
 
 .status-tag { padding: 2px 10px; border-radius: 10px; font-size: 12px; }
-.status-tag.online { background: #f6ffed; color: #52c41a; }
-.status-tag.offline { background: #fff1f0; color: #ff4d4f; }
-.status-tag.disabled { background: #f5f5f5; color: #999; }
+.status-tag.online { background: var(--color-success-bg); color: var(--color-success-text); }
+.status-tag.offline { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.status-tag.disabled { background: rgba(100,116,139,0.15); color: var(--text-muted); }
 
-.error-banner { background: #fff2f0; border: 1px solid #ffccc7; color: #ff4d4f; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
-.loading-spinner { text-align: center; padding: 48px; color: #999; font-size: 14px; }
-.empty { text-align: center; padding: 48px; color: #999; }
+.error-banner { background: var(--color-danger-bg); border: 1px solid rgba(239,68,68,0.25); color: var(--color-danger-text); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
+.loading-spinner { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+.empty { text-align: center; padding: 48px; color: var(--text-muted); }
 
 .pagination { display: flex; justify-content: center; gap: 16px; align-items: center; margin-top: 20px; }
 .pagination button {
-  padding: 6px 16px; background: #fff; border: 1px solid #d9d9d9;
-  color: #666; border-radius: 4px; cursor: pointer;
+  padding: 6px 16px; background: var(--bg-card); border: 1px solid var(--border-default);
+  color: var(--text-muted); border-radius: 6px; cursor: pointer; transition: all 0.2s;
 }
+.pagination button:hover:not(:disabled) { border-color: var(--border-focus); color: var(--color-primary); }
 .pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
-.pagination span { color: #666; font-size: 13px; }
+.pagination span { color: var(--text-secondary); font-size: 13px; }
 </style>

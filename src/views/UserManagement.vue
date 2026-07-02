@@ -2,9 +2,32 @@
   <div class="admin-page">
     <div class="page-header">
       <h2>用户管理</h2>
-      <button @click="openAdd" class="btn-primary">+ 新增用户</button>
+      <div class="header-btns">
+        <div class="view-toggle">
+          <button :class="['toggle-btn', { active: !showTree }]" @click="showTree = false">📋 用户列表</button>
+          <button :class="['toggle-btn', { active: showTree }]" @click="showTree = true; loadTree()">🏛 组织架构</button>
+        </div>
+        <button v-if="auth.canAddUser" @click="openAdd" class="btn-success">+ 新增用户</button>
+      </div>
     </div>
-    <div class="admin-card">
+    <!-- 组织架构（切换视图） -->
+    <div v-if="showTree" class="admin-card">
+      <h3>组织架构</h3>
+      <div v-if="loadingTree" class="loading-state">加载中...</div>
+      <div v-else-if="!flatTree.length" class="empty-state" style="padding:20px;text-align:center;color:var(--text-muted);">暂无数据</div>
+      <div v-else class="tree-container">
+        <div v-for="node in flatTree" :key="node.userId" class="tree-row" :style="{ paddingLeft: (node.level * 24) + 'px' }">
+          <span v-if="node.level > 0" class="tree-connector">├─</span>
+          <div class="node-box" :class="{ 'root-box': node.isMe }">
+            <span class="node-name">{{ node.username }} <span v-if="node.isMe" class="me-tag">(我)</span></span>
+            <span class="node-role">{{ node.roleType === 'superadmin' ? '超管' : node.roleType === 'admin' ? '管理员' : '员工' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 用户列表（切换视图） -->
+    <div v-else class="admin-card">
       <div v-if="loading" class="loading-state">加载中...</div>
       <div v-if="error" class="error-msg">{{ error }}</div>
       <table v-if="!loading && users.length" class="admin-table">
@@ -19,6 +42,7 @@
             <td class="action-cell">
               <button @click="manageDevices(u)" class="btn-sm">📡 设备({{ deviceCounts[u.id] || 0 }})</button>
               <button @click="editUser(u)" class="btn-sm">✏️</button>
+              <button v-if="auth.isSuperAdmin" @click="openResetPwd(u)" class="btn-sm btn-warn">🔒</button>
               <button @click="confirmDelete(u)" class="btn-sm btn-danger">🗑</button>
             </td>
           </tr>
@@ -51,7 +75,7 @@
           </div>
           <div class="form-item" v-if="form.tenantId && !auth.isSuperAdmin">
             <label>上级用户</label>
-            <span style="padding:9px 0;color:#64748b;font-size:14px;">{{ auth.user?.realname || auth.user?.username }}（自己）</span>
+            <span style="padding:9px 0;color:var(--text-muted);font-size:14px;">{{ auth.user?.realname || auth.user?.username }}（自己）</span>
           </div>
           <div class="modal-actions">
             <button type="button" @click="closeModal" class="btn-secondary">取消</button>
@@ -66,11 +90,27 @@
     <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
       <div class="modal-card">
         <h3>确认删除</h3>
-        <p style="margin:16px 0;color:#475569;">确定要删除用户「{{ deleteTarget.username }}」吗？</p>
+        <p style="margin:16px 0;color:var(--text-secondary);">确定要删除用户「{{ deleteTarget.username }}」吗？</p>
         <div class="modal-actions">
           <button @click="deleteTarget = null" class="btn-secondary">取消</button>
-          <button @click="doDelete" :disabled="saving" class="btn-danger" style="padding:9px 22px;border-radius:8px;border:none;color:#fff;background:#ef4444;cursor:pointer;">确认删除</button>
+          <button @click="doDelete" :disabled="saving" class="btn-danger" style="padding:9px 22px;border-radius:8px;border:none;color:#fff;background:var(--color-danger);cursor:pointer;">确认删除</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 管理员重置密码弹窗 -->
+    <div v-if="resetPwdTarget" class="modal-overlay" @click.self="resetPwdTarget = null">
+      <div class="modal-card">
+        <h3>🔒 重置密码 - {{ resetPwdTarget.username }}</h3>
+        <form @submit.prevent="handleResetPwd" class="admin-form">
+          <div class="form-item"><label>新密码</label><input v-model="resetNewPwd" type="password" class="form-input" required placeholder="请输入新密码" /></div>
+          <div class="form-item"><label>确认密码</label><input v-model="resetConfirmPwd" type="password" class="form-input" required placeholder="请再次输入新密码" /></div>
+          <div class="modal-actions">
+            <button type="button" @click="resetPwdTarget = null" class="btn-secondary">取消</button>
+            <button type="submit" :disabled="resetPwdSaving" class="btn-primary">{{ resetPwdSaving ? '重置中...' : '确认重置' }}</button>
+          </div>
+          <p v-if="resetPwdMsg" :class="resetPwdOk ? 'msg-ok' : 'msg-err'">{{ resetPwdMsg }}</p>
+        </form>
       </div>
     </div>
 
@@ -96,7 +136,7 @@
               </tr>
             </tbody>
           </table>
-          <p style="margin:10px 0;color:#64748b;font-size:13px;">已选择 {{ selectedDeviceIds.length }} 台设备</p>
+          <p style="margin:10px 0;color:var(--text-muted);font-size:13px;">已选择 {{ selectedDeviceIds.length }} 台设备</p>
         </div>
         <div class="modal-actions">
           <button @click="bindUser = null" class="btn-secondary">取消</button>
@@ -115,6 +155,95 @@ import api from '../api'
 
 const auth = useAuthStore()
 const users = ref([]); const allUsers = ref([]); const loading = ref(false); const error = ref('')
+
+// ===== 组织架构 =====
+const showTree = ref(false)
+const flatTree = ref([])
+const loadingTree = ref(false)
+
+async function toggleTree() {
+  showTree.value = !showTree.value
+  if (showTree.value && !flatTree.value.length) await loadTree()
+}
+
+async function loadTree() {
+  if (!auth.user?.id) return
+  loadingTree.value = true
+  try {
+    const [meRes, userRes, allExtRes] = await Promise.all([
+      api.get(`/iot/admin/device/user/extension/${auth.user.id}`),
+      api.get('/sys/user/list?pageNo=1&pageSize=500'),
+      api.get('/iot/admin/device/user/extension/all')
+    ])
+    const users2 = userRes.data.result?.records || []
+    const rawExts = allExtRes.data.result || []
+    const userMap = {}; users2.forEach(u => { userMap[u.id] = { name: u.realname || u.username, username: u.username } })
+
+    const superAdmin = rawExts.find(e => (e.roleType || e.role_type) === 'superadmin')
+    const rootId = superAdmin ? (superAdmin.userId || superAdmin.user_id) : auth.user.id
+
+    const extMap = {}
+    rawExts.forEach(e => { extMap[e.userId || e.user_id] = { ...e, userId: e.userId || e.user_id, parentId: e.parentId || e.parent_id, roleType: e.roleType || e.role_type } })
+    for (const u of users2) {
+      if (!extMap[u.id]) extMap[u.id] = { userId: u.id, parentId: rootId, roleType: 'employee' }
+    }
+    const allExts = Object.values(extMap)
+    const needParent = new Set(allExts.map(e => e.parentId).filter(Boolean))
+    for (const pid of needParent) {
+      if (!extMap[pid]) extMap[pid] = { userId: pid, parentId: rootId, roleType: 'employee' }
+    }
+    const extensions = Object.values(extMap)
+
+    function childrenOf(parentId) {
+      return extensions
+        .filter(e => String(e.parentId || '') === String(parentId))
+        .map(e => ({
+          userId: e.userId,
+          username: (userMap[e.userId] || {}).name || e.userId,
+          roleType: e.roleType || 'employee',
+          isMe: e.userId === auth.user.id,
+          children: childrenOf(e.userId)
+        }))
+    }
+
+    const rootU = userMap[rootId]
+    const fullTree = { userId: rootId, username: rootU ? rootU.name : rootId, roleType: 'superadmin', isMe: rootId === auth.user.id, children: childrenOf(rootId) }
+
+    const isSuperAdmin = auth.user.id === rootId
+    let visibleIds = null
+    if (!isSuperAdmin) {
+      const ancestorIds = new Set()
+      let cur = auth.user.id
+      while (cur) {
+        ancestorIds.add(cur)
+        const ext = extMap[cur]
+        cur = ext ? ext.parentId : null
+      }
+      const descendantIds = new Set()
+      function collectDescendants(node) { descendantIds.add(node.userId); if (node.children) node.children.forEach(collectDescendants) }
+      function findAndCollect(tree, targetId) {
+        if (tree.userId === targetId) { tree.children.forEach(collectDescendants); return true }
+        if (tree.children) { for (const c of tree.children) { if (findAndCollect(c, targetId)) return true } }
+        return false
+      }
+      findAndCollect(fullTree, auth.user.id)
+      visibleIds = new Set([...ancestorIds, ...descendantIds])
+    }
+
+    const flat = []
+    function flatten(node, level) {
+      flat.push({ userId: node.userId, username: node.username, roleType: node.roleType, isMe: node.isMe, level })
+      if (node.children) {
+        for (const c of node.children) {
+          if (!visibleIds || visibleIds.has(c.userId)) flatten(c, level + 1)
+        }
+      }
+    }
+    flatten(fullTree, 0)
+    flatTree.value = flat
+  } catch (e) { console.error(e) }
+  loadingTree.value = false
+}
 const showAdd = ref(false); const showEdit = ref(null); const deleteTarget = ref(null)
 const form = ref({}); const saving = ref(false); const saveMsg = ref(''); const saveOk = ref(false)
 const tenants = ref([]); const tenantNames = ref({}); const deviceCounts = ref({})
@@ -130,6 +259,10 @@ const parentCandidates = computed(() => {
   }
   return [] // 非超管不显示上级选择器
 })
+
+const resetPwdTarget = ref(null)
+const resetNewPwd = ref(''); const resetConfirmPwd = ref('')
+const resetPwdSaving = ref(false); const resetPwdMsg = ref(''); const resetPwdOk = ref(false)
 
 const bindUser = ref(null)
 const allDevices = ref([]); const selectedDeviceIds = ref([])
@@ -199,6 +332,34 @@ function openAdd() {
   showAdd.value = true; showEdit.value = null; saveMsg.value = ''
 }
 function confirmDelete(u) { deleteTarget.value = u }
+
+function openResetPwd(u) {
+  resetPwdTarget.value = u
+  resetNewPwd.value = ''
+  resetConfirmPwd.value = ''
+  resetPwdMsg.value = ''
+  resetPwdOk.value = false
+}
+
+async function handleResetPwd() {
+  resetPwdMsg.value = ''
+  if (!resetNewPwd.value) { resetPwdMsg.value = '请输入新密码'; return }
+  if (resetNewPwd.value !== resetConfirmPwd.value) { resetPwdMsg.value = '两次密码不一致'; return }
+  resetPwdSaving.value = true
+  try {
+    const res = await api.put('/sys/user/adminResetPassword', { userId: resetPwdTarget.value.id, newPassword: resetNewPwd.value })
+    if (res.data.success || res.data.code === 0) {
+      resetPwdMsg.value = '密码重置成功'
+      resetPwdOk.value = true
+      setTimeout(() => { resetPwdTarget.value = null; resetPwdMsg.value = '' }, 1000)
+    } else {
+      resetPwdMsg.value = res.data.message || '重置失败'
+    }
+  } catch (e) {
+    resetPwdMsg.value = e.response?.data?.detail || e.response?.data?.message || '重置失败'
+  }
+  resetPwdSaving.value = false
+}
 
 async function doDelete() {
   saving.value = true
@@ -344,3 +505,24 @@ async function saveDeviceBinding() {
 onMounted(fetchUsers)
 </script>
 console.log('UserManagement loaded at', new Date().toISOString())
+
+<style scoped>
+.header-btns { display: flex; gap: 8px; align-items: center; }
+.view-toggle { display: flex; border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden; }
+.view-toggle .toggle-btn {
+  padding: 7px 18px; border: none; background: rgba(148,163,184,0.14);
+  color: var(--text-primary); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.2s;
+}
+.view-toggle .toggle-btn:first-child { border-right: 1px solid var(--border-default); }
+.view-toggle .toggle-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.view-toggle .toggle-btn.active { background: var(--color-primary); color: #0f172a; font-weight: 600; }
+.tree-container { padding: 10px 0; }
+.tree-row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.tree-connector { color: var(--text-muted); font-family: monospace; font-size: 14px; }
+.node-box { display: inline-flex; align-items: center; gap: 12px; padding: 8px 14px; background: var(--bg-hover); border: 1px solid var(--border-default); border-radius: 8px; }
+.root-box { background: rgba(96,199,243,0.06); border-color: rgba(96,199,243,0.18); }
+.node-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.node-role { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(100,116,139,0.15); color: var(--text-muted); }
+.me-tag { font-size: 10px; color: var(--color-primary); font-weight: 400; margin-left: 2px; }
+</style>

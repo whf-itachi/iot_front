@@ -48,10 +48,10 @@
     <div v-if="deleteTarget" class="modal-overlay" @click.self="deleteTarget = null">
       <div class="modal-card">
         <h3>确认删除</h3>
-        <p style="margin:16px 0;color:#475569;">确定要删除租户「{{ deleteTarget.name }}」吗？该操作不可撤销。</p>
+        <p style="margin:16px 0;color:var(--text-secondary);">确定要删除租户「{{ deleteTarget.name }}」吗？该操作不可撤销。</p>
         <div class="modal-actions">
           <button @click="deleteTarget = null" class="btn-secondary">取消</button>
-          <button @click="doDelete" :disabled="saving" class="btn-danger" style="padding:9px 22px;border-radius:8px;border:none;color:#fff;background:#ef4444;cursor:pointer;">{{ saving ? '删除中...' : '确认删除' }}</button>
+          <button @click="doDelete" :disabled="saving" class="btn-danger" style="padding:9px 22px;border-radius:8px;border:none;color:#fff;background:var(--color-danger);cursor:pointer;">{{ saving ? '删除中...' : '确认删除' }}</button>
         </div>
       </div>
     </div>
@@ -64,10 +64,10 @@
         <div v-else>
           <div class="assign-summary">
             <span>✅ 已勾选: {{ tenantDevices.filter(d => d._checked).length }} 台</span>
-            <span style="color:#94a3b8;">|</span>
+            <span style="color:var(--text-secondary);">|</span>
             <span>🔲 未分配: {{ unassignedCount }} 台</span>
-            <span style="color:#94a3b8;">|</span>
-            <span style="color:#f59e0b;">🔒 已归属其他租户: {{ lockedCount }} 台</span>
+            <span style="color:var(--text-secondary);">|</span>
+            <span style="color:var(--color-warning);">🔒 已归属其他租户: {{ lockedCount }} 台</span>
           </div>
           <table class="admin-table" style="margin-top:12px;">
             <thead><tr><th style="width:40px">选择</th><th>设备名称</th><th>状态</th><th>当前归属</th></tr></thead>
@@ -86,9 +86,9 @@
               </tr>
             </tbody>
           </table>
-          <p style="margin:10px 0;color:#64748b;font-size:13px;">
+          <p style="margin:10px 0;color:var(--text-muted);font-size:13px;">
             已勾选 {{ tenantDevices.filter(d => d._checked).length }} 台 |
-            <span v-if="lockedCount > 0" style="color:#f59e0b;">🔒 灰色行已被其他租户占用，不可选 |</span>
+            <span v-if="lockedCount > 0" style="color:var(--color-warning);">🔒 灰色行已被其他租户占用，不可选 |</span>
             未勾选的本租户设备将被移除
           </p>
         </div>

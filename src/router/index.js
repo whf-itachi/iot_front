@@ -20,6 +20,12 @@ const routes = [
         meta: { title: '首页' }
       },
       {
+        path: 'statistics',
+        name: 'Statistics',
+        component: () => import('../views/Statistics.vue'),
+        meta: { title: '统计信息' }
+      },
+      {
         path: 'process-logs',
         name: 'ProcessLogs',
         component: () => import('../views/BladeProcessLog.vue'),
@@ -42,12 +48,6 @@ const routes = [
         name: 'DeviceDetail',
         component: () => import('../views/DeviceDetail.vue'),
         meta: { title: '设备详情' }
-      },
-      {
-        path: 'profile',
-        name: 'Profile',
-        component: () => import('../views/Profile.vue'),
-        meta: { title: '个人中心' }
       },
       {
         path: 'admin/users',

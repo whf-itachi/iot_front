@@ -158,62 +158,64 @@ onMounted(async () => {
 
 <style scoped>
 .device-detail { padding: 0; }
-.loading-spinner { text-align: center; padding: 48px; color: #999; font-size: 14px; }
-.error-banner { background: #fff2f0; border: 1px solid #ffccc7; color: #ff4d4f; padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
+.loading-spinner { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+.error-banner { background: var(--color-danger-bg); border: 1px solid rgba(239,68,68,0.25); color: var(--color-danger-text); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
 .detail-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
 .back-btn {
-  padding: 6px 14px; background: #fff; border: 1px solid #d9d9d9;
-  color: #666; border-radius: 4px; cursor: pointer; font-size: 13px;
+  padding: 6px 14px; background: var(--bg-card); border: 1px solid var(--border-default);
+  color: var(--text-muted); border-radius: 6px; cursor: pointer; font-size: 13px;
+  transition: all 0.2s;
 }
-.back-btn:hover { border-color: #1890ff; color: #1890ff; }
-.header-info h2 { font-size: 22px; color: #222; margin-bottom: 4px; }
-.header-meta { font-size: 14px; color: #666; }
+.back-btn:hover { border-color: var(--border-focus); color: var(--color-primary); }
+.header-info h2 { font-size: 22px; color: var(--text-primary); margin-bottom: 4px; }
+.header-meta { font-size: 14px; color: var(--text-muted); }
 .status-tag { padding: 2px 10px; border-radius: 10px; font-size: 12px; }
-.status-tag.online { background: #f6ffed; color: #52c41a; }
-.status-tag.offline { background: #fff1f0; color: #ff4d4f; }
+.status-tag.online { background: var(--color-success-bg); color: var(--color-success-text); }
+.status-tag.offline { background: var(--color-danger-bg); color: var(--color-danger-text); }
 
-.tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid #e8e8e8; }
+.tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border-default); }
 .tab {
-  padding: 10px 24px; border: none; background: transparent; color: #666;
+  padding: 10px 24px; border: none; background: transparent; color: var(--text-muted);
   font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.2s;
 }
-.tab.active { color: #1890ff; border-bottom-color: #1890ff; }
-.tab:hover { color: #40a9ff; }
+.tab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.tab:hover { color: var(--color-primary-hover); }
 
 .section { margin-bottom: 28px; }
-.section h3 { font-size: 16px; color: #333; margin-bottom: 14px; }
+.section h3 { font-size: 16px; color: var(--text-primary); margin-bottom: 14px; }
 
 .prop-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .prop-card {
-  background: #fff; border: 1px solid #e8e8e8;
-  border-radius: 6px; padding: 14px;
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: 8px; padding: 14px;
 }
-.prop-name { font-size: 14px; color: #333; margin-bottom: 2px; }
-.prop-id { font-size: 12px; color: #999; }
-.prop-type { font-size: 11px; color: #1890ff; margin-top: 4px; }
+.prop-name { font-size: 14px; color: var(--text-primary); margin-bottom: 2px; }
+.prop-id { font-size: 12px; color: var(--text-muted); }
+.prop-type { font-size: 11px; color: var(--color-primary); margin-top: 4px; }
 
 .event-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .event-card {
-  background: #fff; border: 1px solid #e8e8e8;
-  border-radius: 6px; padding: 14px;
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: 8px; padding: 14px;
 }
-.event-card.level-urgent { border-left: 3px solid #ff4d4f; }
-.event-card.level-warn { border-left: 3px solid #faad14; }
-.event-card.level-ordinary { border-left: 3px solid #1890ff; }
+.event-card.level-urgent { border-left: 3px solid var(--color-danger); }
+.event-card.level-warn { border-left: 3px solid var(--color-warning); }
+.event-card.level-ordinary { border-left: 3px solid var(--color-primary); }
 .event-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.event-name { font-size: 14px; color: #333; }
-.event-id { font-size: 12px; color: #999; }
+.event-name { font-size: 14px; color: var(--text-primary); }
+.event-id { font-size: 12px; color: var(--text-muted); }
 .event-level { font-size: 11px; padding: 1px 8px; border-radius: 8px; }
-.event-level.urgent { background: #fff1f0; color: #ff4d4f; }
-.event-level.warn { background: #fff7e6; color: #faad14; }
-.event-level.ordinary { background: #e6f7ff; color: #1890ff; }
+.event-level.urgent { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.event-level.warn { background: var(--color-warning-bg); color: var(--color-warning-text); }
+.event-level.ordinary { background: var(--color-info-bg); color: var(--color-primary); }
 
-.hint { font-size: 13px; color: #999; line-height: 1.6; }
+.hint { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
 
-.table-wrap { background: #fff; border: 1px solid #e8e8e8; border-radius: 6px; overflow-x: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.table-wrap { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 6px; overflow-x: auto; box-shadow: var(--shadow-card); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; padding: 10px 14px; color: #666; background: #fafafa; border-bottom: 1px solid #e8e8e8; white-space: nowrap; }
-td { padding: 8px 14px; color: #333; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
-tr:hover td { background: #fafafa; }
-.empty { text-align: center; padding: 32px; color: #999; }
+th { text-align: left; padding: 10px 14px; color: var(--text-muted); background: var(--bg-table-header); border-bottom: 1px solid var(--border-default); white-space: nowrap; }
+td { padding: 8px 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); white-space: nowrap; }
+tr:hover td { background: var(--bg-hover); }
+.empty { text-align: center; padding: 32px; color: var(--text-muted); }
 </style>

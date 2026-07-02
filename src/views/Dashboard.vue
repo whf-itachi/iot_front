@@ -17,10 +17,6 @@
         <div class="stat-value">{{ stats.offlineDevices }}</div>
         <div class="stat-label">离线设备 →</div>
       </router-link>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.avgSpindle }}</div>
-        <div class="stat-label">平均主轴转速 (RPM)</div>
-      </div>
     </div>
 
     <div class="quick-links">
@@ -30,16 +26,6 @@
           <span class="link-icon">📡</span>
           <span class="link-title">设备列表</span>
           <span class="link-desc">全部设备、支持状态筛选</span>
-        </router-link>
-        <router-link to="/device-status" class="link-card">
-          <span class="link-icon">📊</span>
-          <span class="link-title">设备监控大屏</span>
-          <span class="link-desc">实时设备状态、物模型属性</span>
-        </router-link>
-        <router-link to="/alarm-logs" class="link-card">
-          <span class="link-icon">🔔</span>
-          <span class="link-title">报警日志</span>
-          <span class="link-desc">告警记录与趋势分析</span>
         </router-link>
         <router-link to="/process-logs" class="link-card">
           <span class="link-icon">⚙️</span>
@@ -59,10 +45,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import api, { API_BASE } from '../api'
+import api from '../api'
 
 const auth = useAuthStore()
-const stats = ref({ totalDevices: 35, onlineDevices: 0, offlineDevices: 35, avgSpindle: '2,005' })
+const stats = ref({ totalDevices: 35, onlineDevices: 0, offlineDevices: 35 })
 const dataError = ref(false)
 
 onMounted(async () => {
@@ -83,22 +69,6 @@ onMounted(async () => {
       stats.value.offlineDevices = mine.filter(d => d.stateValue !== 'online').length
     }
   } catch (e) { dataError.value = true }
-
-  // 主轴转速：超管用全量实时数据，非超管不显示
-  if (auth.isSuperAdmin) {
-    try {
-      const speedRes = await fetch(`${API_BASE}/iot/spindle/trend`)
-      if (speedRes.ok) {
-        const speedData = await speedRes.json()
-        if (speedData.length) {
-          const avg = Math.round(speedData.reduce((s, i) => s + i.value, 0) / speedData.length)
-          stats.value.avgSpindle = avg.toLocaleString()
-        }
-      }
-    } catch (e) {}
-  } else {
-    stats.value.avgSpindle = '-'
-  }
 })
 </script>
 
@@ -106,9 +76,9 @@ onMounted(async () => {
 .stale-indicator {
   font-size: 11px;
   font-weight: 400;
-  color: #d48806;
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
+  color: var(--color-warning-text);
+  background: var(--color-warning-bg);
+  border: 1px solid rgba(245,158,11,0.3);
   padding: 2px 8px;
   border-radius: 10px;
   margin-left: 10px;

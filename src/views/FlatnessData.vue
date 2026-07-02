@@ -1,65 +1,63 @@
 <template>
   <div class="flatness-layout">
-    <!-- ===== 左侧：叶片列表 ===== -->
-    <aside class="blade-panel">
-      <div class="blade-search">
-        <input
-          v-model="deviceName"
-          class="device-input"
-          placeholder="输入设备名称，如 tls_0"
-          @keyup.enter="searchBlades"
-        />
-        <button class="search-btn" @click="searchBlades" :disabled="loading">
-          查询
-        </button>
-      </div>
-      <div v-if="loading" class="blade-loading">加载中...</div>
-      <div v-else-if="blades.length === 0" class="blade-empty">
-        {{ searched ? '该设备暂无测量数据' : '输入设备名称后点击查询' }}
-      </div>
-      <ul v-else class="blade-list">
+    <!-- ===== 左侧：设备列表 ===== -->
+    <aside class="device-panel">
+      <div class="panel-title">设备列表</div>
+      <div v-if="loadingDevices" class="panel-loading">加载中...</div>
+      <div v-else-if="!devices.length" class="panel-empty">暂无设备</div>
+      <ul v-else class="panel-list">
         <li
-          v-for="b in blades"
-          :key="b.blade_id"
-          class="blade-item"
-          :class="{ active: selectedBlade?.blade_id === b.blade_id }"
-          @click="selectBlade(b)"
+          v-for="d in devices"
+          :key="d.id"
+          class="panel-item"
+          :class="{ active: selectedDevice?.id === d.id }"
+          @click="selectDevice(d)"
         >
-          <span class="blade-name">{{ b.blade_id }}</span>
-          <span class="blade-badges">
-            <span v-if="b.before" class="badge ok">前</span>
-            <span v-if="b.after" class="badge ok">后</span>
-            <span v-if="!b.before && !b.after" class="badge none">无</span>
-          </span>
+          <span class="item-name">{{ d.name }}</span>
+          <span :class="['item-tag', d.stateValue === 'online' ? 'ok' : 'fail']">{{ d.stateText || d.stateValue }}</span>
         </li>
       </ul>
     </aside>
 
-    <!-- ===== 右侧：详情 ===== -->
-    <main class="detail-panel">
-      <!-- 未选择 -->
-      <div v-if="!selectedBlade" class="empty-state">
-        <div class="empty-icon">📐</div>
-        <p>请先查询设备，然后点击叶片查看详情</p>
+    <!-- ===== 右侧：叶片列表 / 详情（切换） ===== -->
+    <main class="main-panel">
+
+      <!-- 未选设备 -->
+      <div v-if="!selectedDevice" class="empty-state">
+        <div class="empty-icon">📡</div>
+        <p>请从左侧选择设备</p>
       </div>
 
-      <!-- 已选择 -->
-      <template v-if="selectedBlade && currentData">
+      <!-- 叶片列表 -->
+      <template v-else-if="!viewingBlade">
+        <div class="panel-title">叶片列表 · {{ selectedDevice.name }}</div>
+        <div v-if="loadingBlades" class="panel-loading">加载中...</div>
+        <div v-else-if="!blades.length" class="panel-empty">该设备暂无测量数据</div>
+        <ul v-else class="blade-list">
+          <li
+            v-for="b in blades"
+            :key="b.blade_id"
+            class="blade-item"
+            @click="selectBlade(b)"
+          >
+            <span class="blade-name">{{ b.blade_id }}</span>
+            <span class="blade-badges">
+              <span v-if="b.before" class="badge ok">前</span>
+              <span v-if="b.after" class="badge ok">后</span>
+              <span v-if="!b.before && !b.after" class="badge none">无</span>
+            </span>
+          </li>
+        </ul>
+      </template>
+
+      <!-- 详情 -->
+      <template v-else>
         <div class="detail-header">
+          <button class="back-btn" @click="viewingBlade = false">← 返回叶片列表</button>
           <h2>叶片：{{ selectedBlade.blade_id }}</h2>
           <div class="stage-toggle">
-            <button
-              class="toggle-btn"
-              :class="{ active: stage === 'before' }"
-              @click="stage = 'before'"
-              :disabled="!selectedBlade.before"
-            >加工前</button>
-            <button
-              class="toggle-btn"
-              :class="{ active: stage === 'after' }"
-              @click="stage = 'after'"
-              :disabled="!selectedBlade.after"
-            >加工后</button>
+            <button class="toggle-btn" :class="{ active: stage === 'before' }" @click="stage = 'before'" :disabled="!selectedBlade.before">加工前</button>
+            <button class="toggle-btn" :class="{ active: stage === 'after' }" @click="stage = 'after'" :disabled="!selectedBlade.after">加工后</button>
             <div class="tool-group">
               <button class="tool-btn" @click="handlePrint">🖨 打印</button>
               <button class="tool-btn" @click="handleExportPDF">📄 PDF</button>
@@ -99,9 +97,7 @@
               <div class="rp-section-inner">测量数据</div>
               <div class="table-wrap">
                 <table>
-                  <thead>
-                    <tr><th>#</th><th>孔角度 (°)</th><th>孔测量值 (mm)</th></tr>
-                  </thead>
+                  <thead><tr><th>#</th><th>孔角度 (°)</th><th>孔测量值 (mm)</th></tr></thead>
                   <tbody>
                     <tr v-for="(angle, di) in currentData.hole_angle" :key="di">
                       <td>{{ di + 1 }}</td>
@@ -120,44 +116,72 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
-import { API_BASE } from '../api'
+import { ref, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
+import { useAuthStore } from '../stores/auth'
+import api, { API_BASE } from '../api'
 
 const MILLISECOND_THRESHOLD = 1e12
+const auth = useAuthStore()
 
-const deviceName = ref('')
+const devices = ref([])
+const selectedDevice = ref(null)
+const loadingDevices = ref(false)
+
 const blades = ref([])
 const selectedBlade = ref(null)
-const stage = ref('before')
-const searched = ref(false)
-const loading = ref(false)
+const viewingBlade = ref(false)
+const loadingBlades = ref(false)
 
+const stage = ref('before')
 const chartRef = ref(null)
 let chartInstance = null
 
 const currentData = ref(null)
 
-// ===== 数据获取 =====
-async function searchBlades() {
-  const name = deviceName.value.trim()
-  if (!name) return
-  loading.value = true; searched.value = true; selectedBlade.value = null; currentData.value = null
+onMounted(async () => {
+  loadingDevices.value = true
   try {
-    const res = await fetch(`${API_BASE}/iot/flatness/blades?deviceName=${encodeURIComponent(name)}`)
-    const data = await res.json()
-    if (data.success) {
-      blades.value = data.results || []
-    } else {
-      blades.value = []
+    if (!auth.roleLoaded) {
+      await new Promise(resolve => {
+        const timer = setInterval(() => { if (auth.roleLoaded) { clearInterval(timer); resolve() } }, 100)
+      })
     }
+    const res = await api.get('/iot/admin/device/withBladeData', { params: { dataType: 'flatness' } })
+    if (res.data.success) {
+      const all = res.data.result || []
+      if (!auth.isSuperAdmin) {
+        const idsRes = await api.get('/iot/admin/device/myDeviceIds', { params: { username: auth.user?.username } })
+        const ids = new Set(idsRes.data.result || [])
+        devices.value = all.filter(d => ids.has(d.id))
+      } else {
+        devices.value = all
+      }
+      // 默认选中第一台设备
+      if (devices.value.length) await selectDevice(devices.value[0])
+    }
+  } catch (e) { /* ignore */ }
+  loadingDevices.value = false
+})
+
+async function selectDevice(d) {
+  selectedDevice.value = d
+  selectedBlade.value = null
+  viewingBlade.value = false
+  currentData.value = null
+  loadingBlades.value = true
+  try {
+    const res = await fetch(`${API_BASE}/iot/flatness/blades?deviceName=${encodeURIComponent(d.name)}`)
+    const data = await res.json()
+    blades.value = data.success ? (data.results || []) : []
   } catch (e) { blades.value = [] }
-  finally { loading.value = false }
+  loadingBlades.value = false
 }
 
-function selectBlade(blade) {
-  selectedBlade.value = blade
-  stage.value = blade.before ? 'before' : 'after'
+function selectBlade(b) {
+  selectedBlade.value = b
+  stage.value = b.before ? 'before' : 'after'
   updateCurrentData()
+  viewingBlade.value = true
 }
 
 function updateCurrentData() {
@@ -167,7 +191,7 @@ function updateCurrentData() {
 
 watch(stage, updateCurrentData)
 
-// ===== Chart =====
+// Chart
 watch(currentData, async () => {
   if (chartInstance) { chartInstance.dispose(); chartInstance = null }
   await nextTick()
@@ -180,8 +204,12 @@ watch(currentData, async () => {
   const values = item.hole_value.map(v => Number(v))
 
   chartInstance.setOption({
+    backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
+      backgroundColor: '#1a2940',
+      borderColor: 'rgba(148,163,184,0.15)',
+      textStyle: { color: '#f1f5f9' },
       formatter(p) {
         const pt = p[0]
         return `孔角度：${pt.axisValue.toFixed(4)}°<br/>孔测量值：${pt.value.toFixed(4)} mm`
@@ -190,18 +218,27 @@ watch(currentData, async () => {
     grid: { left: 50, right: 30, top: 30, bottom: 50 },
     xAxis: {
       type: 'value', name: '孔角度 (°)', nameLocation: 'center', nameGap: 30,
-      axisLabel: { formatter: v => v.toFixed(1) }
+      nameTextStyle: { color: '#a0aec0' },
+      axisLabel: { color: '#a0aec0', formatter: v => v.toFixed(1) },
+      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.12)' } },
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.06)' } }
     },
-    yAxis: { type: 'value', name: '孔测量值 (mm)', nameLocation: 'center', nameGap: 45 },
+    yAxis: {
+      type: 'value', name: '孔测量值 (mm)', nameLocation: 'center', nameGap: 45,
+      nameTextStyle: { color: '#a0aec0' },
+      axisLabel: { color: '#a0aec0' },
+      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.12)' } },
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.06)' } }
+    },
     series: [{
       data: angles.map((a, i) => [a, values[i]]),
       type: 'line', smooth: true, symbol: 'circle', symbolSize: 5,
-      lineStyle: { color: '#0ea5e9', width: 2 },
-      itemStyle: { color: '#0ea5e9' },
+      lineStyle: { color: '#60c7f3', width: 2 },
+      itemStyle: { color: '#60c7f3' },
       areaStyle: {
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(14, 165, 233, 0.25)' },
-          { offset: 1, color: 'rgba(14, 165, 233, 0.02)' }
+          { offset: 0, color: 'rgba(96, 199, 243, 0.2)' },
+          { offset: 1, color: 'rgba(96, 199, 243, 0.02)' }
         ])
       }
     }]
@@ -211,10 +248,7 @@ watch(currentData, async () => {
 onBeforeUnmount(() => { chartInstance?.dispose() })
 window.addEventListener('resize', () => chartInstance?.resize())
 
-// ===== Helpers =====
-function hasChartData(item) {
-  return item?.hole_angle?.length > 0 && item?.hole_value?.length > 0
-}
+function hasChartData(item) { return item?.hole_angle?.length > 0 && item?.hole_value?.length > 0 }
 function hasTableData(item) { return hasChartData(item) }
 
 function fmtTs(ts) {
@@ -231,14 +265,13 @@ function fmtVal(v, d) {
 }
 
 // ===== Export =====
-const printCSS = `*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Microsoft YaHei',sans-serif;padding:24px;color:#1e293b;background:#fff}.rp-title{background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff;text-align:center;font-size:22px;font-weight:700;padding:16px}.rp-subtitle{display:flex;gap:16px;padding:12px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-top:none;font-size:13px}.rp-table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0}.rp-section{background:#f0f9ff;color:#0369a1;font-size:13px;font-weight:700;padding:9px 18px}.rp-table td{padding:8px 18px;border-bottom:1px solid #f1f5f9;font-size:13px}.rp-label{color:#64748b;width:150px}.rp-value{color:#1e293b;font-weight:600}.rp-unit{color:#94a3b8}.chart-box{width:100%;height:380px}.rp-section-inner{background:#f0f9ff;color:#0369a1;font-size:13px;font-weight:700;padding:9px 18px}.table-wrap table{width:100%;border-collapse:collapse}.table-wrap th{background:#f8fafc;color:#64748b;font-weight:600;padding:8px 14px;border-bottom:1px solid #e2e8f0;text-align:center}.table-wrap td{padding:6px 14px;border-bottom:1px solid #f1f5f9;text-align:center;color:#334155}@media print{body{padding:6mm}}`
+const printCSS = `*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Microsoft YaHei',sans-serif;padding:24px;color:#f1f5f9;background:#1a2940}.rp-title{background:linear-gradient(135deg,#60c7f3,#38bdf8);color:#0f172a;text-align:center;font-size:22px;font-weight:700;padding:16px}.rp-subtitle{display:flex;gap:16px;padding:12px 18px;background:#1a2940;border:1px solid rgba(148,163,184,0.1);border-top:none;font-size:13px;color:#bcc9db}.rp-table{width:100%;border-collapse:collapse;border:1px solid rgba(148,163,184,0.1)}.rp-section{background:rgba(96,199,243,0.08);color:#60c7f3;font-size:13px;font-weight:700;padding:9px 18px}.rp-table td{padding:8px 18px;border-bottom:1px solid rgba(148,163,184,0.05);font-size:13px}.rp-label{color:#8ea0b4;width:150px}.rp-value{color:#f1f5f9;font-weight:600}.rp-unit{color:#bcc9db}.chart-box{width:100%;height:380px}.rp-section-inner{background:rgba(96,199,243,0.08);color:#60c7f3;font-size:13px;font-weight:700;padding:9px 18px}.table-wrap table{width:100%;border-collapse:collapse}.table-wrap th{background:#1a2940;color:#bcc9db;font-weight:600;padding:8px 14px;border-bottom:1px solid rgba(148,163,184,0.1);text-align:center}.table-wrap td{padding:6px 14px;border-bottom:1px solid rgba(148,163,184,0.05);text-align:center;color:#f1f5f9}@media print{body{padding:6mm}}`
 
 function handlePrint() {
   const el = document.getElementById('report-area-' + stage.value)
   if (!el) return
-  const text = el.textContent
   const w = window.open('', '_blank', 'width=900,height=700')
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>平面度测量数据</title><style>${printCSS}</style></head><body>${text}</body></html>`)
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>平面度测量数据</title><style>${printCSS}</style></head><body>${el.textContent}</body></html>`)
   w.document.close()
   setTimeout(() => { w.print(); w.close() }, 400)
 }
@@ -250,28 +283,20 @@ async function handleExportPDF() {
   if (!page) return
 
   const doc = new jsPDF('p', 'mm', 'a4')
-  const pageW = doc.internal.pageSize.getWidth()
-  const pageH = doc.internal.pageSize.getHeight()
-  const margin = 8
-  const contentW = pageW - margin * 2
-  const contentH = pageH - margin * 2
+  const pageW = doc.internal.pageSize.getWidth(); const pageH = doc.internal.pageSize.getHeight()
+  const margin = 8; const contentW = pageW - margin * 2; const contentH = pageH - margin * 2
 
   async function renderSection(el) {
-    const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#fff', logging: false })
+    const canvas = await html2canvas(el, { scale: 3, backgroundColor: '#1a2332', logging: false })
     return { dataURL: canvas.toDataURL('image/png'), mmH: contentW * (canvas.height / canvas.width) }
   }
-
   async function addSection(imgURL, mmH, y) {
-    let cy = y
-    if (mmH <= 0) return cy
+    let cy = y; if (mmH <= 0) return cy
     const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = imgURL })
-    const pxPerMm = img.naturalWidth / contentW
-    let srcY = 0, rem = mmH
+    const pxPerMm = img.naturalWidth / contentW; let srcY = 0, rem = mmH
     while (rem > 0) {
-      const space = contentH - cy
-      if (space < 5) { doc.addPage(); cy = margin; continue }
-      const sliceMm = Math.min(rem, space)
-      const srcH = Math.ceil(sliceMm * pxPerMm)
+      const space = contentH - cy; if (space < 5) { doc.addPage(); cy = margin; continue }
+      const sliceMm = Math.min(rem, space); const srcH = Math.ceil(sliceMm * pxPerMm)
       const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = srcH
       c.getContext('2d').drawImage(img, 0, Math.floor(srcY), img.naturalWidth, srcH, 0, 0, img.naturalWidth, srcH)
       doc.addImage(c.toDataURL('image/png'), 'PNG', margin, cy, contentW, sliceMm)
@@ -282,14 +307,12 @@ async function handleExportPDF() {
 
   let y = margin
   for (const sel of ['.rp-title', '.rp-subtitle', '.rp-table', '.chart-section .rp-section-inner']) {
-    const el = page.querySelector(sel)
-    if (!el) continue
-    const s = await renderSection(el)
-    y = await addSection(s.dataURL, s.mmH, y)
+    const el = page.querySelector(sel); if (!el) continue
+    const s = await renderSection(el); y = await addSection(s.dataURL, s.mmH, y)
   }
   if (chartInstance) {
     try {
-      const chartImg = chartInstance.getDataURL({ type: 'png', pixelRatio: 3, backgroundColor: '#fff' })
+      const chartImg = chartInstance.getDataURL({ type: 'png', pixelRatio: 3, backgroundColor: '#1a2332' })
       const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = chartImg })
       y = await addSection(chartImg, contentW * (img.naturalHeight / img.naturalWidth), y)
     } catch (e) {}
@@ -302,18 +325,17 @@ async function handleExportPDF() {
 
 async function handleExportExcel() {
   const ExcelJS = await import('exceljs')
-  const item = currentData.value
-  if (!item) return
+  const item = currentData.value; if (!item) return
   const wb = new ExcelJS.Workbook()
   const ws = wb.addWorksheet((item.blade_id || 'data').substring(0, 31))
   ws.getColumn(1).width = 30; ws.getColumn(2).width = 30; ws.getColumn(3).width = 30
-  const border = { style: 'thin', color: { argb: 'FFCCCCCC' } }
+  const border = { style: 'thin', color: { argb: 'FF2D3B4F' } }
   const b = c => { c.border = { top: border, bottom: border, left: border, right: border } }
-  const hdr = c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F9FF' } }; c.font = { bold: true, size: 11, color: { argb: 'FF0369A1' } } }
+  const hdr = c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A2940' } }; c.font = { bold: true, size: 11, color: { argb: 'FF60C7F3' } } }
 
   let r = 1
-  ws.mergeCells(`A${r}:C${r}`); const t = ws.getCell(`A${r}`); t.value = `平面度报表（${stage.value === 'before' ? '加工前' : '加工后'}）`; t.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } }; t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0EA5E9' } }; t.alignment = { horizontal: 'center', vertical: 'middle' }; b(t); ws.getRow(r).height = 30; r++
-  ws.mergeCells(`A${r}:C${r}`); const s = ws.getCell(`A${r}`); s.value = `叶片ID：${item.blade_id || '-'}  设备：${selectedBlade.value?.device_name || '-'}`; s.font = { size: 10, color: { argb: 'FF475569' } }; b(s); r++
+  ws.mergeCells(`A${r}:C${r}`); const t = ws.getCell(`A${r}`); t.value = `平面度报表（${stage.value === 'before' ? '加工前' : '加工后'}）`; t.font = { bold: true, size: 16, color: { argb: 'FF0F172A' } }; t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF60C7F3' } }; t.alignment = { horizontal: 'center', vertical: 'middle' }; b(t); ws.getRow(r).height = 30; r++
+  ws.mergeCells(`A${r}:C${r}`); const s = ws.getCell(`A${r}`); s.value = `叶片ID：${item.blade_id || '-'}  设备：${selectedBlade.value?.device_name || '-'}`; s.font = { size: 10, color: { argb: 'FFA0AEC0' } }; b(s); r++
   ws.mergeCells(`A${r}:C${r}`); hdr(ws.getCell(`A${r}`)); ws.getCell(`A${r}`).value = '统计数据'; b(ws.getCell(`A${r}`)); r++
   for (const [label, val, unit] of [['最大值', fmtVal(item.max_value, 2), 'mm'], ['最小值', fmtVal(item.min_value, 2), 'mm'], ['峰峰值', fmtVal(item.pv_value, 2), 'mm'], ['RMS', fmtVal(item.rms, 2), 'mm']]) {
     const a = ws.getCell(`A${r}`); a.value = label; a.font = { color: { argb: 'FF64748B' } }; a.alignment = { horizontal: 'center' }; b(a)
@@ -341,101 +363,117 @@ async function handleExportExcel() {
 </script>
 
 <style scoped>
-/* ===== Layout ===== */
 .flatness-layout {
   display: flex; gap: 0; min-height: calc(100vh - 120px);
-  border-radius: 12px; overflow: hidden; border: 1px solid #e8ecf1;
-  background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  border-radius: 12px; overflow: hidden; border: 1px solid var(--border-default);
+  background: var(--bg-card); box-shadow: var(--shadow-card);
 }
 
-/* ===== Left Panel ===== */
-.blade-panel {
-  width: 280px; flex-shrink: 0; border-right: 1px solid #e8ecf1;
-  display: flex; flex-direction: column; background: #fafbfc;
+/* ===== Left Device Panel ===== */
+.device-panel {
+  width: 220px; flex-shrink: 0; border-right: 1px solid var(--border-default);
+  display: flex; flex-direction: column; background: var(--bg-sidebar);
 }
-.blade-search { padding: 14px; display: flex; gap: 6px; }
-.device-input {
-  flex: 1; padding: 8px 12px; border: 1.5px solid #e2e8f0;
-  border-radius: 8px; font-size: 13px; outline: none;
-  transition: border-color 0.2s;
+.panel-title {
+  padding: 14px 16px; font-size: 13px; font-weight: 600;
+  color: var(--text-primary); border-bottom: 1px solid var(--border-light);
 }
-.device-input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.08); }
-.search-btn {
-  padding: 8px 16px; background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-  color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
-  cursor: pointer; white-space: nowrap;
+.panel-loading, .panel-empty {
+  padding: 24px 16px; text-align: center; color: var(--text-muted); font-size: 13px;
 }
-.search-btn:hover { transform: translateY(-1px); }
-.search-btn:disabled { opacity: 0.5; transform: none; }
-.blade-loading, .blade-empty { padding: 24px; text-align: center; color: #94a3b8; font-size: 13px; }
+.panel-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
+.panel-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s; gap: 8px;
+}
+.panel-item:hover { background: var(--bg-hover); }
+.panel-item.active {
+  background: linear-gradient(135deg, rgba(96,199,243,0.08), rgba(56,189,248,0.04));
+  border-left: 3px solid var(--color-primary);
+}
+.item-name { color: var(--text-primary); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+.item-tag.ok { background: var(--color-success-bg); color: var(--color-success-text); }
+.item-tag.fail { background: var(--color-danger-bg); color: var(--color-danger-text); }
+
+/* ===== Right Main Panel ===== */
+.main-panel { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+.main-panel > .panel-title { position: sticky; top: 0; background: var(--bg-card); z-index: 1; }
+.empty-state { text-align: center; padding: 100px 24px; }
+.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
+.empty-state p { color: var(--text-muted); font-size: 14px; }
+
+/* Blade list */
 .blade-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
 .blade-item {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f1f5f9;
-  transition: background 0.15s; font-size: 13px;
+  padding: 12px 20px; cursor: pointer; border-bottom: 1px solid var(--border-light);
+  transition: background 0.15s;
 }
-.blade-item:hover { background: #f0f9ff; }
-.blade-item.active { background: linear-gradient(135deg, rgba(14,165,233,0.08), rgba(56,189,248,0.04)); border-left: 3px solid #0ea5e9; }
-.blade-name { color: #1e293b; font-weight: 500; }
+.blade-item:hover { background: var(--bg-hover); }
+.blade-name { color: var(--text-primary); font-size: 14px; font-weight: 500; }
 .blade-badges { display: flex; gap: 4px; }
 .badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
-.badge.ok { background: #d1fae5; color: #065f46; }
-.badge.none { background: #f1f5f9; color: #94a3b8; }
+.badge.ok { background: var(--color-success-bg); color: var(--color-success-text); }
+.badge.none { background: rgba(100,116,139,0.15); color: var(--text-muted); }
 
-/* ===== Right Panel ===== */
-.detail-panel { flex: 1; padding: 24px; overflow-y: auto; }
-.empty-state { text-align: center; padding: 100px 24px; }
-.empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; }
-.empty-state p { color: #94a3b8; font-size: 14px; }
-
-.detail-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
-.detail-header h2 { font-size: 20px; font-weight: 700; color: #1e293b; margin: 0; }
-.stage-toggle { display: flex; align-items: center; gap: 8px; }
-.toggle-btn {
-  padding: 6px 18px; border: 1.5px solid #e2e8f0; background: #fff;
-  border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer;
+/* Detail */
+.detail-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 24px; border-bottom: 1px solid var(--border-light); }
+.detail-header h2 { font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0; }
+.back-btn {
+  padding: 5px 12px; background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: 6px; color: var(--text-secondary); font-size: 12px; cursor: pointer;
   transition: all 0.2s;
 }
-.toggle-btn.active { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
-.toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.back-btn:hover { border-color: var(--border-focus); color: var(--color-primary); }
+.stage-toggle { display: flex; align-items: center; gap: 8px; }
+.stage-toggle .toggle-btn {
+  padding: 5px 16px; border: 1.5px solid var(--border-default); background: var(--bg-card);
+  border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--text-secondary);
+  transition: all 0.2s;
+}
+.stage-toggle .toggle-btn.active { background: var(--color-primary); color: #0f172a; border-color: var(--color-primary); }
+.stage-toggle .toggle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .tool-group { display: flex; gap: 4px; margin-left: 12px; }
 .tool-btn {
-  padding: 5px 10px; background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 6px; color: #475569; font-size: 11px; cursor: pointer;
+  padding: 5px 10px; background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: 6px; color: var(--text-secondary); font-size: 11px; cursor: pointer;
+  transition: all 0.2s;
 }
-.tool-btn:hover { border-color: #0ea5e9; color: #0ea5e9; background: #f0f9ff; }
+.tool-btn:hover { border-color: var(--border-focus); color: var(--color-primary); background: var(--bg-hover); }
 
-/* ===== Report ===== */
-.report-wrapper { margin-top: 8px; }
+/* Report */
+.report-wrapper { padding: 24px; }
 .report-page {
-  background: #fff; border-radius: 12px; overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.06); border: 1px solid #e8ecf1;
+  background: var(--bg-card); border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow-card); border: 1px solid var(--border-default);
 }
 .rp-title {
-  background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-  color: #fff; text-align: center; font-size: 20px; font-weight: 700;
+  background: var(--gradient-primary);
+  color: #0f172a; text-align: center; font-size: 20px; font-weight: 700;
   padding: 16px; letter-spacing: 4px;
 }
 .rp-subtitle {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 12px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-  font-size: 13px; color: #475569; gap: 16px;
+  padding: 12px 20px; background: var(--bg-table-header); border-bottom: 1px solid var(--border-default);
+  font-size: 13px; color: var(--text-secondary); gap: 16px;
 }
 .rp-table { width: 100%; border-collapse: collapse; }
-.rp-section { background: #f0f9ff; color: #0369a1; font-size: 13px; font-weight: 700; padding: 9px 20px; border-bottom: 1px solid #bae6fd; letter-spacing: 1px; }
-.rp-table td { padding: 8px 20px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
-.rp-label { color: #64748b; width: 155px; text-align: right; background: #fafbfc; font-weight: 500; }
-.rp-value { color: #1e293b; font-weight: 600; }
-.rp-unit { color: #94a3b8; width: 55px; font-size: 12px; }
-.chart-section { border: 1px solid #e2e8f0; border-top: none; }
-.rp-section-inner { background: #f0f9ff; color: #0369a1; font-size: 13px; font-weight: 700; padding: 9px 20px; border-bottom: 1px solid #bae6fd; letter-spacing: 1px; }
+.rp-section { background: var(--bg-section); color: var(--color-primary); font-size: 13px; font-weight: 700; padding: 9px 20px; border-bottom: 1px solid rgba(96,199,243,0.1); letter-spacing: 1px; }
+.rp-table td { padding: 8px 20px; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+.rp-label { color: var(--text-muted); width: 155px; text-align: right; background: var(--bg-table-header); font-weight: 500; }
+.rp-value { color: var(--text-primary); font-weight: 600; }
+.rp-unit { color: var(--text-muted); width: 55px; font-size: 12px; }
+.chart-section { border: 1px solid var(--border-default); border-top: none; }
+.rp-section-inner { background: var(--bg-section); color: var(--color-primary); font-size: 13px; font-weight: 700; padding: 9px 20px; border-bottom: 1px solid rgba(96,199,243,0.1); letter-spacing: 1px; }
 .chart-container { padding: 16px; }
 .chart-box { width: 100%; height: 380px; }
-.chart-empty { text-align: center; padding: 48px; color: #94a3b8; font-size: 13px; }
-.data-section { border: 1px solid #e2e8f0; border-top: none; }
+.chart-empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 13px; }
+.data-section { border: 1px solid var(--border-default); border-top: none; }
 .table-wrap { overflow-x: auto; }
 .table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.table-wrap th { text-align: center; padding: 8px 14px; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-weight: 600; }
-.table-wrap td { padding: 6px 14px; color: #334155; border-bottom: 1px solid #f1f5f9; text-align: center; }
-.table-wrap tr:hover td { background: #f8fafc; }
+.table-wrap th { text-align: center; padding: 8px 14px; color: var(--text-muted); background: var(--bg-table-header); border-bottom: 1px solid var(--border-default); font-weight: 600; }
+.table-wrap td { padding: 6px 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); text-align: center; }
+.table-wrap tr:hover td { background: var(--bg-hover); }
 </style>
