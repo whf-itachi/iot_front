@@ -60,10 +60,11 @@
           <div class="form-item" v-if="!showEdit"><label>密码</label><input v-model="form.password" type="password" class="form-input" required /></div>
           <div class="form-item"><label>姓名</label><input v-model="form.realname" class="form-input" /></div>
           <div class="form-item"><label>所属租户</label>
-            <select v-model="form.tenantId" class="form-input">
+            <select v-if="auth.isSuperAdmin" v-model="form.tenantId" class="form-input">
               <option value="">-- 不分配 --</option>
               <option v-for="t in tenants" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
+            <span v-else style="padding:9px 0;color:var(--text-secondary);font-size:14px;">{{ tenantNames[form.tenantId] || '未分配' }}</span>
           </div>
           <div class="form-item" v-if="form.tenantId && auth.isSuperAdmin">
             <label>上级用户</label>
@@ -246,7 +247,7 @@ async function loadTree() {
 const showAdd = ref(false); const showEdit = ref(null); const deleteTarget = ref(null)
 const form = ref({}); const saving = ref(false); const saveMsg = ref(''); const saveOk = ref(false)
 const tenants = ref([]); const tenantNames = ref({}); const deviceCounts = ref({})
-const userExtensions = ref({})
+const userExtensions = ref({}); const myTenantId = ref(null)
 
 // 上级候选人：同一租户下的其他用户（仅超管可选，非超管固定为自己）
 const parentCandidates = computed(() => {
@@ -279,6 +280,10 @@ async function fetchUsers() {
     const rawUsers = userRes.data.result?.records || []
     const extensions = allExtRes.data.result || []
     allUsers.value = rawUsers
+
+    // 记录当前管理员的租户ID（非超管默认只能分配到自己租户）
+    const me = rawUsers.find(u => u.id === auth.user?.id)
+    if (me && me.relTenantIds) myTenantId.value = Number(me.relTenantIds)
 
     // 非超管：只显示自己的下级
     if (!auth.isSuperAdmin) {
@@ -326,7 +331,8 @@ async function fetchUsers() {
 function openAdd() {
   form.value = {}
   if (!auth.isSuperAdmin) {
-    form.value.parentId = auth.user?.id  // 非超管新建用户自动为自己的下级
+    form.value.tenantId = myTenantId.value  // 管理员默认自己租户，不可改
+    form.value.parentId = auth.user?.id
   }
   showAdd.value = true; showEdit.value = null; saveMsg.value = ''
 }
