@@ -46,7 +46,7 @@
       <div class="modal-card">
         <h3>个人信息</h3>
         <div class="profile-info">
-          <div class="info-row"><span class="info-label">用户名</span><span class="info-val">{{ auth.user?.username || '-' }}</span></div>
+          <div class="info-row"><span class="info-label">账号名</span><span class="info-val">{{ auth.user?.username || '-' }}</span></div>
           <div class="info-row"><span class="info-label">姓名</span><span class="info-val">{{ auth.user?.realname || '-' }}</span></div>
         </div>
 

@@ -31,7 +31,7 @@
       <div v-if="loading" class="loading-state">加载中...</div>
       <div v-if="error" class="error-msg">{{ error }}</div>
       <table v-if="!loading && users.length" class="admin-table">
-        <thead><tr><th>用户名</th><th>姓名</th><th>角色</th><th>所属租户</th><th>上级</th><th>设备数</th><th>操作</th></tr></thead>
+        <thead><tr><th>账号名</th><th>姓名</th><th>角色</th><th>所属租户</th><th>上级</th><th>设备数</th><th>操作</th></tr></thead>
         <tbody>
           <tr v-for="u in users" :key="u.id">
             <td>{{ u.username }}</td><td>{{ u.realname || '-' }}</td>
@@ -56,7 +56,7 @@
       <div class="modal-card">
         <h3>{{ showEdit ? '编辑用户' : '新增用户' }}</h3>
         <form @submit.prevent="handleSave" class="admin-form">
-          <div class="form-item"><label>用户名</label><input v-model="form.username" class="form-input" required :disabled="!!showEdit" /></div>
+          <div class="form-item"><label>账号名</label><input v-model="form.username" class="form-input" required :disabled="!!showEdit" /></div>
           <div class="form-item" v-if="!showEdit"><label>密码</label><input v-model="form.password" type="password" class="form-input" required /></div>
           <div class="form-item"><label>姓名</label><input v-model="form.realname" class="form-input" /></div>
           <div class="form-item"><label>所属租户</label>

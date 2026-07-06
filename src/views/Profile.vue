@@ -8,7 +8,7 @@
     <div class="admin-card">
       <h3>基本信息</h3>
       <div class="info-grid">
-        <div class="info-item"><label>用户名</label><span>{{ auth.user?.username || '-' }}</span></div>
+        <div class="info-item"><label>账号名</label><span>{{ auth.user?.username || '-' }}</span></div>
         <div class="info-item"><label>姓名</label><span>{{ auth.user?.realname || '-' }}</span></div>
         <div class="info-item"><label>角色</label><span class="role-badge" :class="'role-' + (myRole || 'employee')">{{ roleText }}</span></div>
       </div>
