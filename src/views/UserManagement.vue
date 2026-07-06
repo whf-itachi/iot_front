@@ -59,7 +59,6 @@
           <div class="form-item"><label>用户名</label><input v-model="form.username" class="form-input" required :disabled="!!showEdit" /></div>
           <div class="form-item" v-if="!showEdit"><label>密码</label><input v-model="form.password" type="password" class="form-input" required /></div>
           <div class="form-item"><label>姓名</label><input v-model="form.realname" class="form-input" /></div>
-          <div class="form-item"><label>手机号</label><input v-model="form.phone" class="form-input" /></div>
           <div class="form-item"><label>所属租户</label>
             <select v-model="form.tenantId" class="form-input">
               <option value="">-- 不分配 --</option>

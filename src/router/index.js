@@ -74,6 +74,8 @@ router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
   if (!to.meta.noAuth && !auth.token) {
     next('/login')
+  } else if (to.meta.requireAdmin && !auth.isAdmin) {
+    next('/dashboard')
   } else {
     next()
   }

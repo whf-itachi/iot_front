@@ -21,8 +21,10 @@
         <router-link to="/flatness" class="menu-item">
           <span>📐</span> 平面度测量数据
         </router-link>
-        <div class="menu-divider"></div>
-        <div class="menu-label">系统管理</div>
+        <template v-if="auth.isAdmin">
+          <div class="menu-divider"></div>
+          <div class="menu-label">系统管理</div>
+        </template>
         <router-link v-if="auth.canManageUsers" to="/admin/users" class="menu-item">
           <span>👥</span> 用户管理
         </router-link>
@@ -46,7 +48,6 @@
         <div class="profile-info">
           <div class="info-row"><span class="info-label">用户名</span><span class="info-val">{{ auth.user?.username || '-' }}</span></div>
           <div class="info-row"><span class="info-label">姓名</span><span class="info-val">{{ auth.user?.realname || '-' }}</span></div>
-          <div class="info-row"><span class="info-label">手机号</span><span class="info-val">{{ auth.user?.phone || '-' }}</span></div>
         </div>
 
         <div class="profile-divider"></div>

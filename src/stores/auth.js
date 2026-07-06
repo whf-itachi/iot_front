@@ -12,7 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperAdmin = computed(() => role.value === 'superadmin')
   const isAdmin = computed(() => role.value === 'admin' || role.value === 'superadmin')
   const canManageTenants = computed(() => role.value === 'superadmin')
-  const canManageUsers = computed(() => true) // 所有登录用户都可查看用户管理
+  const canManageUsers = computed(() => role.value === 'admin' || role.value === 'superadmin')
   const canAddUser = computed(() => role.value === 'admin' || role.value === 'superadmin')
 
   // 标记是否已加载完角色
