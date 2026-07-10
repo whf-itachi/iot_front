@@ -118,7 +118,7 @@
 <script setup>
 import { ref, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import api, { API_BASE } from '../api'
+import api from '../api'
 
 const MILLISECOND_THRESHOLD = 1e12
 const auth = useAuthStore()
@@ -170,9 +170,8 @@ async function selectDevice(d) {
   currentData.value = null
   loadingBlades.value = true
   try {
-    const res = await fetch(`${API_BASE}/iot/flatness/blades?deviceName=${encodeURIComponent(d.name)}`)
-    const data = await res.json()
-    blades.value = data.success ? (data.results || []) : []
+    const res = await api.get('/iot/flatness/blades', { params: { deviceName: d.name } })
+    blades.value = res.data.success ? (res.data.results || []) : []
   } catch (e) { blades.value = [] }
   loadingBlades.value = false
 }

@@ -104,7 +104,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { API_BASE } from '../api'
+import api from '../api'
 
 const route = useRoute()
 const deviceId = route.params.id
@@ -137,10 +137,10 @@ onMounted(async () => {
   loading.value = true
   error.value = ''
   try {
-    const res = await fetch(`${API_BASE}/iot/device/${deviceId}`)
-    const data = await res.json()
-    if (!res.ok) {
-      throw new Error(data.message || `请求失败 (${res.status})`)
+    const res = await api.get(`/iot/device/${deviceId}`)
+    const data = res.data
+    if (data.error) {
+      throw new Error(data.error)
     }
     device.value = data.device
     properties.value = data.properties || []

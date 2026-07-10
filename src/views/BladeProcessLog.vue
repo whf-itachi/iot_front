@@ -125,7 +125,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import api, { API_BASE } from '../api'
+import api from '../api'
 
 const MILLISECOND_THRESHOLD = 1e12
 const auth = useAuthStore()
@@ -173,9 +173,8 @@ async function selectDevice(d) {
   currentLog.value = null
   loadingBlades.value = true
   try {
-    const res = await fetch(`${API_BASE}/iot/process-log/blades?deviceName=${encodeURIComponent(d.name)}`)
-    const data = await res.json()
-    blades.value = data.success ? (data.results || []) : []
+    const res = await api.get('/iot/process-log/blades', { params: { deviceName: d.name } })
+    blades.value = res.data.success ? (res.data.results || []) : []
   } catch (e) { blades.value = [] }
   loadingBlades.value = false
 }

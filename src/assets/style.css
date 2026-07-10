@@ -89,6 +89,11 @@ button[type="submit"] {
 button[type="submit"]:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(96,199,243,0.2); }
 button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .error { color: var(--color-danger-text); text-align: center; margin-top: 12px; font-size: 14px; }
+.success { color: var(--color-success-text); text-align: center; margin-top: 12px; font-size: 14px; font-weight: 500; }
+.expire-notice { color: var(--color-warning-text); background: var(--color-warning-bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; text-align: center; border: 1px solid rgba(251,191,36,0.2); }
+.btn-back { width: 100%; padding: 10px; background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary); border-radius: 10px; font-size: 14px; cursor: pointer; margin-top: 8px; transition: all 0.2s; }
+.btn-back:hover { background: var(--bg-hover); color: var(--text-primary); }
+.form-item input:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ===== Layout ===== */
 .layout { display: flex; min-height: 100vh; }

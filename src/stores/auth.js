@@ -46,15 +46,28 @@ export const useAuthStore = defineStore('auth', () => {
       token.value = res.data.result.token
       user.value = res.data.result.userInfo || { username }
       localStorage.setItem('token', token.value)
+      localStorage.setItem('refreshToken', res.data.result.refreshToken)
       localStorage.setItem('user', JSON.stringify(user.value))
-      try {
-        const extRes = await api.get(`/iot/admin/device/user/extension/${user.value.id}`)
-        if (extRes.data.success) {
-          role.value = extRes.data.result?.roleType || 'employee'
-          localStorage.setItem('role', role.value)
-        }
-      } catch (e) { role.value = 'employee' }
+      // 登录接口已返回 role，优先使用
+      if (res.data.result.userInfo?.role) {
+        role.value = res.data.result.userInfo.role
+        localStorage.setItem('role', role.value)
+      } else {
+        try {
+          const extRes = await api.get(`/iot/admin/device/user/extension/${user.value.id}`)
+          if (extRes.data.success) {
+            role.value = extRes.data.result?.roleType || 'employee'
+            localStorage.setItem('role', role.value)
+          }
+        } catch (e) { role.value = 'employee' }
+      }
       return true
+    }
+    // 密码过期：code === 4001
+    if (res.data.code === 4001) {
+      const err = new Error(res.data.message || '密码已过期，请修改密码')
+      err.code = 'PWD_EXPIRED'
+      throw err
     }
     throw new Error(res.data.message || '登录失败')
   }
@@ -64,6 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     role.value = 'employee'
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     localStorage.removeItem('user')
     localStorage.removeItem('role')
   }

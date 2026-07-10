@@ -46,7 +46,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { API_BASE } from '../api'
+import api from '../api'
 
 const stats = ref([])
 const loading = ref(true)
@@ -94,9 +94,8 @@ function goLatest() {
 
 onMounted(async () => {
   try {
-    const res = await fetch(`${API_BASE}/iot/statistics/flatness`)
-    const data = await res.json()
-    if (data.success) stats.value = data.results || []
+    const res = await api.get('/iot/statistics/flatness')
+    if (res.data.success) stats.value = res.data.results || []
   } catch (e) { /* ignore */ }
   loading.value = false
   goLatest()
