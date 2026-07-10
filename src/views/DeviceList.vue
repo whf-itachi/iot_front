@@ -48,9 +48,7 @@
         </thead>
         <tbody>
           <tr v-for="d in devices" :key="d.id">
-            <td class="device-name">
-              <router-link :to="'/device/' + d.id">{{ d.name }}</router-link>
-            </td>
+            <td class="device-name">{{ d.name }}</td>
             <td>{{ d.productName }}</td>
             <td>
               <span :class="['status-tag', statusClass(d.stateValue)]">
@@ -220,8 +218,7 @@ onMounted(async () => {
 .device-table th { text-align: left; padding: 12px 16px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid var(--border-default); background: var(--bg-table-header); }
 .device-table td { padding: 10px 16px; font-size: 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); }
 .device-table tr:hover td { background: var(--bg-hover); }
-.device-name a { color: var(--color-primary); font-weight: 500; text-decoration: none; }
-.device-name a:hover { color: var(--color-primary-hover); }
+.device-name { font-weight: 500; }
 
 .status-tag { padding: 2px 10px; border-radius: 10px; font-size: 12px; }
 .status-tag.online { background: var(--color-success-bg); color: var(--color-success-text); }

@@ -44,12 +44,6 @@ const routes = [
         meta: { title: '设备列表' }
       },
       {
-        path: 'device/:id',
-        name: 'DeviceDetail',
-        component: () => import('../views/DeviceDetail.vue'),
-        meta: { title: '设备详情' }
-      },
-      {
         path: 'admin/users',
         name: 'UserManagement',
         component: () => import('../views/UserManagement.vue'),
