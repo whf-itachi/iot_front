@@ -269,8 +269,26 @@ const printCSS = `*{margin:0;padding:0;box-sizing:border-box}body{font-family:'M
 function handlePrint() {
   const el = document.getElementById('report-area-' + stage.value)
   if (!el) return
+
+  // 克隆 DOM 并替换 canvas 为图片（canvas 像素数据不会被 innerHTML 序列化）
+  const clone = el.cloneNode(true)
+  const origCanvases = el.querySelectorAll('canvas')
+  const cloneCanvases = clone.querySelectorAll('canvas')
+  for (let i = 0; i < origCanvases.length; i++) {
+    const origCanvas = origCanvases[i]
+    const cloneCanvas = cloneCanvases[i]
+    if (cloneCanvas && origCanvas.width > 0 && origCanvas.height > 0) {
+      const img = document.createElement('img')
+      img.src = origCanvas.toDataURL('image/png')
+      img.style.width = origCanvas.offsetWidth + 'px'
+      img.style.height = origCanvas.offsetHeight + 'px'
+      img.style.display = 'block'
+      cloneCanvas.parentNode.replaceChild(img, cloneCanvas)
+    }
+  }
+
   const w = window.open('', '_blank', 'width=900,height=700')
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>平面度测量数据</title><style>${printCSS}</style></head><body>${el.textContent}</body></html>`)
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>平面度测量数据</title><style>${printCSS}</style></head><body>${clone.innerHTML}</body></html>`)
   w.document.close()
   setTimeout(() => { w.print(); w.close() }, 400)
 }

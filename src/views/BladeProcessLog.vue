@@ -205,7 +205,7 @@ function handlePrint() {
   const el = document.getElementById('report-print-area')
   if (!el) return
   const w = window.open('', '_blank', 'width=860,height=700')
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>叶片加工日志</title><style>${printCSS}</style></head><body>${el.textContent}</body></html>`)
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>叶片加工日志</title><style>${printCSS}</style></head><body>${el.innerHTML}</body></html>`)
   w.document.close()
   setTimeout(() => { w.print(); w.close() }, 400)
 }
