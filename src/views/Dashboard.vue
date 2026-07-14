@@ -2,19 +2,19 @@
   <div class="dashboard">
     <h2>
       IoT 叶片加工监控平台
-      <span v-if="dataError" class="stale-indicator" title="无法获取最新数据，当前显示的是默认值">⚠ 离线数据</span>
+      <span v-if="dataError" class="stale-indicator" title="无法获取最新数据，请检查网络连接后刷新页面">⚠ 数据加载失败</span>
     </h2>
     <div class="stats-grid">
       <router-link to="/devices" class="stat-card">
-        <div class="stat-value">{{ stats.totalDevices }}</div>
+        <div class="stat-value">{{ loading ? '-' : stats.totalDevices }}</div>
         <div class="stat-label">设备总数 →</div>
       </router-link>
       <router-link to="/devices?status=online" class="stat-card online">
-        <div class="stat-value">{{ stats.onlineDevices }}</div>
+        <div class="stat-value">{{ loading ? '-' : stats.onlineDevices }}</div>
         <div class="stat-label">在线设备 →</div>
       </router-link>
       <router-link to="/devices?status=offline" class="stat-card offline">
-        <div class="stat-value">{{ stats.offlineDevices }}</div>
+        <div class="stat-value">{{ loading ? '-' : stats.offlineDevices }}</div>
         <div class="stat-label">离线设备 →</div>
       </router-link>
     </div>
@@ -48,7 +48,8 @@ import { useAuthStore } from '../stores/auth'
 import api from '../api'
 
 const auth = useAuthStore()
-const stats = ref({ totalDevices: 35, onlineDevices: 0, offlineDevices: 35 })
+const stats = ref({ totalDevices: null, onlineDevices: null, offlineDevices: null })
+const loading = ref(true)
 const dataError = ref(false)
 
 onMounted(async () => {
@@ -61,14 +62,18 @@ onMounted(async () => {
     const idsRes = await api.get('/iot/admin/device/myDeviceIds', { params: { username: auth.user?.username } })
     if (idsRes.data.success) {
       const ids = idsRes.data.result || []
-      stats.value.totalDevices = ids.length
       const listRes = await api.get('/iot/admin/device/list?pageNo=1&pageSize=500')
       const all = listRes.data.result?.records || []
       const mine = all.filter(d => ids.includes(d.id))
-      stats.value.onlineDevices = mine.filter(d => d.stateValue === 'online').length
-      stats.value.offlineDevices = mine.filter(d => d.stateValue !== 'online').length
+      // 一次性赋值所有三个值，避免分段更新造成闪烁
+      stats.value = {
+        totalDevices: ids.length,
+        onlineDevices: mine.filter(d => d.stateValue === 'online').length,
+        offlineDevices: mine.filter(d => d.stateValue !== 'online').length
+      }
     }
   } catch (e) { dataError.value = true }
+  finally { loading.value = false }
 })
 </script>
 
