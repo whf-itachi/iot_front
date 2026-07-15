@@ -57,7 +57,7 @@
         <h3>{{ showEdit ? '编辑用户' : '新增用户' }}</h3>
         <form @submit.prevent="handleSave" class="admin-form">
           <div class="form-item"><label>账号名</label><input v-model="form.username" class="form-input" required :disabled="!!showEdit" /></div>
-          <div class="form-item" v-if="!showEdit"><label>密码</label><input v-model="form.password" type="password" class="form-input" required /></div>
+          <div class="form-item"><label>密码</label><input v-model="form.password" type="password" class="form-input" :required="!showEdit" :placeholder="showEdit ? '留空则不修改密码' : ''" /></div>
           <div class="form-item"><label>姓名</label><input v-model="form.realname" class="form-input" /></div>
           <div class="form-item"><label>所属租户</label>
             <select v-if="auth.isSuperAdmin" v-model="form.tenantId" class="form-input">
@@ -352,7 +352,7 @@ async function handleResetPwd() {
   if (resetNewPwd.value !== resetConfirmPwd.value) { resetPwdMsg.value = '两次密码不一致'; return }
   resetPwdSaving.value = true
   try {
-    const res = await api.put('/sys/user/adminResetPassword', { userId: resetPwdTarget.value.id, newPassword: resetNewPwd.value })
+    const res = await api.put('/sys/user/edit', { password: resetNewPwd.value }, { params: { id: resetPwdTarget.value.id } })
     if (res.data.success || res.data.code === 0) {
       resetPwdMsg.value = '密码重置成功'
       resetPwdOk.value = true
@@ -389,16 +389,24 @@ async function handleSave() {
 
   try {
     // 1. 创建/更新用户
-    let res
     if (showEdit.value) {
-      res = await api.put('/sys/user/edit', form.value, { params: { id: form.value.id } })
+      const editData = {}
+      if (form.value.realname !== undefined) editData.realname = form.value.realname
+      if (form.value.password) editData.password = form.value.password
+      if (Object.keys(editData).length) {
+        const res = await api.put('/sys/user/edit', editData, { params: { id: form.value.id } })
+        if (!(res.data.success || res.data.code === 0)) {
+          saveMsg.value = res.data.message || '保存失败'
+          saving.value = false; return
+        }
+      }
     } else {
-      res = await api.post('/sys/user/add', form.value)
-    }
-    if (!(res.data.success || res.data.code === 0)) {
-      saveMsg.value = res.data.message || '保存失败'
-      saving.value = false
-      return
+      // 新增模式（仅管理员）
+      const res = await api.post('/sys/user/add', form.value)
+      if (!(res.data.success || res.data.code === 0)) {
+        saveMsg.value = res.data.message || '保存失败'
+        saving.value = false; return
+      }
     }
 
     // 2. 分配租户

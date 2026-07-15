@@ -43,7 +43,7 @@
           <tr>
             <th style="width:155px">操作时间</th>
             <th style="width:95px">操作账号</th>
-            <th style="width:120px">操作类型</th>
+            <th style="width:150px">操作类型</th>
             <th>操作详情</th>
             <th style="width:120px">IP 地址</th>
           </tr>
@@ -64,10 +64,30 @@
       <div v-if="!loading && !logs.length" class="empty-state">暂无操作日志</div>
 
       <!-- 分页 -->
-      <div v-if="total > pageSize" class="pagination">
-        <button @click="goPage(pageNo - 1)" :disabled="pageNo <= 1" class="btn-sm">上一页</button>
-        <span class="page-info">第 {{ pageNo }} / {{ totalPages }} 页 (共 {{ total }} 条)</span>
-        <button @click="goPage(pageNo + 1)" :disabled="pageNo >= totalPages" class="btn-sm">下一页</button>
+      <div v-if="total > 0" class="pagination-bar">
+        <div class="page-size-ctl">
+          <span>每页</span>
+          <select v-model.number="pageSize" @change="onPageSizeChange" class="size-select">
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+          <span>条</span>
+        </div>
+        <span class="page-range">{{ startRow }} - {{ endRow }} / 共 {{ total }} 条</span>
+        <div class="page-btns">
+          <button :disabled="pageNo <= 1" @click="goPage(1)" class="page-btn" title="首页">«</button>
+          <button :disabled="pageNo <= 1" @click="goPage(pageNo - 1)" class="page-btn" title="上一页">‹</button>
+          <button v-for="p in visiblePages" :key="p"
+            :class="['page-btn', { active: p === pageNo }]"
+            :disabled="p === '...'"
+            @click="p !== '...' && goPage(p)">
+            {{ p }}
+          </button>
+          <button :disabled="pageNo >= totalPages" @click="goPage(pageNo + 1)" class="page-btn" title="下一页">›</button>
+          <button :disabled="pageNo >= totalPages" @click="goPage(totalPages)" class="page-btn" title="末页">»</button>
+        </div>
       </div>
     </div>
   </div>
@@ -81,7 +101,7 @@ const logs = ref([])
 const loading = ref(false)
 const error = ref('')
 const pageNo = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 const total = ref(0)
 
 const filterAccount = ref('')
@@ -92,6 +112,24 @@ const filterEndTime = ref('')
 const operationTypes = ref([])
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value) || 1)
+const startRow = computed(() => total.value === 0 ? 0 : (pageNo.value - 1) * pageSize.value + 1)
+const endRow = computed(() => Math.min(pageNo.value * pageSize.value, total.value))
+
+// 生成可见页码：始终显示首尾 + 当前附近 ±2，其余用 ...
+const visiblePages = computed(() => {
+  const tp = totalPages.value
+  const cur = pageNo.value
+  if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1)
+  const pages = []
+  pages.push(1)
+  if (cur > 4) pages.push('...')
+  const start = Math.max(2, cur - 1)
+  const end = Math.min(tp - 1, cur + 1)
+  for (let i = start; i <= end; i++) pages.push(i)
+  if (cur < tp - 3) pages.push('...')
+  pages.push(tp)
+  return pages
+})
 
 function formatTime(iso) {
   if (!iso) return '-'
@@ -113,7 +151,7 @@ async function fetchLogs() {
   error.value = ''
   try {
     const params = { pageNo: pageNo.value, pageSize: pageSize.value }
-    if (filterAccount.value) params.account = filterAccount.value
+    if (filterAccount.value.trim()) params.account = filterAccount.value.trim()
     if (filterType.value) params.operationType = filterType.value
     if (filterStartTime.value) params.startTime = filterStartTime.value
     if (filterEndTime.value) params.endTime = filterEndTime.value
@@ -138,6 +176,8 @@ async function fetchTypes() {
   } catch (_) {}
 }
 
+function onPageSizeChange() { pageNo.value = 1; fetchLogs() }
+
 function search() { pageNo.value = 1; fetchLogs() }
 
 function resetFilters() {
@@ -159,14 +199,41 @@ onMounted(() => { fetchTypes(); fetchLogs() })
 .filter-item { display: flex; flex-direction: column; gap: 4px; }
 .filter-item label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
 .filter-item .form-input { min-width: 160px; }
+.filter-item input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
 .filter-btns { flex-direction: row; gap: 8px; align-items: center; padding-top: 20px; }
 
-.pagination {
-  display: flex; align-items: center; justify-content: center;
-  gap: 16px; margin-top: 20px; padding-top: 16px;
+.pagination-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 20px; padding-top: 16px;
   border-top: 1px solid var(--border-light);
+  flex-wrap: wrap; gap: 12px;
 }
-.page-info { font-size: 13px; color: var(--text-secondary); }
+.page-size-ctl { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.size-select {
+  padding: 4px 8px; border: 1px solid var(--border-default); border-radius: 6px;
+  background: var(--bg-input); color: var(--text-primary); font-size: 13px; cursor: pointer;
+}
+.size-select:focus { outline: none; border-color: var(--border-focus); }
+.page-range { font-size: 13px; color: var(--text-secondary); }
+.page-btns { display: flex; align-items: center; gap: 4px; }
+.page-btn {
+  min-width: 32px; height: 32px; padding: 0 6px;
+  border: 1px solid var(--border-default); border-radius: 6px;
+  background: var(--bg-card); color: var(--text-secondary);
+  font-size: 13px; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.page-btn:hover:not(:disabled):not(.active) {
+  border-color: var(--border-focus); color: var(--color-primary); background: var(--bg-hover);
+}
+.page-btn.active {
+  background: var(--color-primary); color: #0f172a; border-color: var(--color-primary);
+  font-weight: 700;
+}
+.page-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .page-header h2 { font-size: 22px; font-weight: 700; color: var(--text-primary); margin: 0; }
