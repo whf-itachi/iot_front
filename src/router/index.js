@@ -54,6 +54,12 @@ const routes = [
         name: 'TenantManagement',
         component: () => import('../views/TenantManagement.vue'),
         meta: { title: '租户管理', requireAdmin: true }
+      },
+      {
+        path: 'admin/logs',
+        name: 'OperationLogs',
+        component: () => import('../views/OperationLogs.vue'),
+        meta: { title: '操作日志', requireAdmin: true }
       }
     ]
   }

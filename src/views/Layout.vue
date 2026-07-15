@@ -31,6 +31,9 @@
         <router-link v-if="auth.canManageTenants" to="/admin/tenants" class="menu-item">
           <span>🏢</span> 租户管理
         </router-link>
+        <router-link v-if="auth.canManageTenants" to="/admin/logs" class="menu-item">
+          <span>📋</span> 操作日志
+        </router-link>
       </nav>
       <div class="user-info" @click="showProfileModal = true" title="点击查看个人信息">
         <span>👤 {{ auth.user?.username || '用户' }}</span>
