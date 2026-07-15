@@ -212,13 +212,14 @@ async function loadTree() {
     const isSuperAdmin = auth.user.id === rootId
     let visibleIds = null
     if (!isSuperAdmin) {
+      // 往上只显示直接上级一级
       const ancestorIds = new Set()
-      let cur = auth.user.id
-      while (cur) {
-        ancestorIds.add(cur)
-        const ext = extMap[cur]
-        cur = ext ? ext.parentId : null
+      ancestorIds.add(auth.user.id)
+      const me = extMap[auth.user.id]
+      if (me && me.parentId) {
+        ancestorIds.add(me.parentId)
       }
+      // 往下显示所有下级
       const descendantIds = new Set()
       function collectDescendants(node) { descendantIds.add(node.userId); if (node.children) node.children.forEach(collectDescendants) }
       function findAndCollect(tree, targetId) {
