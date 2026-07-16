@@ -51,7 +51,7 @@
       </template>
 
       <!-- 详情 -->
-      <template v-else>
+      <template v-else-if="currentData">
         <div class="detail-header">
           <button class="back-btn" @click="viewingBlade = false">← 返回叶片列表</button>
           <h2>叶片：{{ selectedBlade.blade_id }}</h2>
@@ -111,6 +111,12 @@
           </div>
         </div>
       </template>
+
+      <!-- 无数据后备 -->
+      <div v-else-if="viewingBlade" class="empty-state">
+        <p>该叶片暂无测量数据</p>
+        <button class="back-btn" style="margin-top:12px" @click="viewingBlade = false">← 返回叶片列表</button>
+      </div>
     </main>
   </div>
 </template>
@@ -135,6 +141,7 @@ const loadingBlades = ref(false)
 const stage = ref('before')
 const chartRef = ref(null)
 let chartInstance = null
+let chartInitPromise = null  // 防止并发初始化
 
 const currentData = ref(null)
 
@@ -190,37 +197,21 @@ function updateCurrentData() {
 
 watch(stage, updateCurrentData)
 
-// Chart
-watch(currentData, async () => {
-  if (chartInstance) { chartInstance.dispose(); chartInstance = null }
-  await nextTick()
-  if (!currentData.value || !hasChartData(currentData.value) || !chartRef.value) return
-
-  const echarts = await import('echarts')
-  chartInstance = echarts.init(chartRef.value)
-  const item = currentData.value
+// Chart — build option object (pure data, no side effects)
+function buildChartOption(item) {
   const angles = item.hole_angle.map(v => Number(v))
   const values = item.hole_value.map(v => Number(v))
-
-  chartInstance.setOption({
+  return {
     backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#1a2940',
-      borderColor: 'rgba(148,163,184,0.15)',
-      textStyle: { color: '#f1f5f9' },
-      formatter(p) {
-        const pt = p[0]
-        return `孔角度：${pt.axisValue.toFixed(4)}°<br/>孔测量值：${pt.value.toFixed(4)} mm`
-      }
-    },
+    tooltip: { show: false },
     grid: { left: 50, right: 30, top: 30, bottom: 50 },
     xAxis: {
       type: 'value', name: '孔角度 (°)', nameLocation: 'center', nameGap: 30,
+      min: Math.min(...angles), max: Math.max(...angles),
       nameTextStyle: { color: '#a0aec0' },
       axisLabel: { color: '#a0aec0', formatter: v => v.toFixed(1) },
       axisLine: { lineStyle: { color: 'rgba(148,163,184,0.12)' } },
-      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.06)' } }
+      splitLine: { show: false }
     },
     yAxis: {
       type: 'value', name: '孔测量值 (mm)', nameLocation: 'center', nameGap: 45,
@@ -235,17 +226,53 @@ watch(currentData, async () => {
       lineStyle: { color: '#60c7f3', width: 2 },
       itemStyle: { color: '#60c7f3' },
       areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(96, 199, 243, 0.2)' },
-          { offset: 1, color: 'rgba(96, 199, 243, 0.02)' }
-        ])
+        color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: 'rgba(96, 199, 243, 0.2)' },
+            { offset: 1, color: 'rgba(96, 199, 243, 0.02)' }
+          ]
+        }
       }
     }]
-  })
-}, { deep: true })
+  }
+}
 
-onBeforeUnmount(() => { chartInstance?.dispose() })
-window.addEventListener('resize', () => chartInstance?.resize())
+// 初始化图表
+async function initChart() {
+  if (!chartRef.value || !currentData.value || !hasChartData(currentData.value)) return
+  const echarts = await import('echarts')
+  // 防止 await 期间 chartInstance 已被其他调用初始化
+  if (chartInstance) chartInstance.dispose()
+  chartInstance = echarts.init(chartRef.value)
+  chartInstance.setOption(buildChartOption(currentData.value))
+}
+
+// 切换数据时更新图表；chartRef 换新 DOM 时重建
+watch([currentData, chartRef], async ([data, ref]) => {
+  if (!data || !hasChartData(data) || !ref) return
+  if (chartInstance && chartInstance.getDom() !== ref) {
+    chartInstance.dispose()
+    chartInstance = null
+  }
+  if (!chartInstance) {
+    // 串行化初始化，防止并发导致重复创建
+    if (!chartInitPromise) {
+      chartInitPromise = initChart().finally(() => { chartInitPromise = null })
+    }
+    await chartInitPromise
+  } else {
+    chartInstance.setOption(buildChartOption(data), { notMerge: true })
+  }
+})
+
+onBeforeUnmount(() => {
+  chartInstance?.dispose()
+  chartInstance = null
+  chartInitPromise = null
+})
+const onResize = () => chartInstance?.resize()
+window.addEventListener('resize', onResize)
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 function hasChartData(item) { return item?.hole_angle?.length > 0 && item?.hole_value?.length > 0 }
 function hasTableData(item) { return hasChartData(item) }
@@ -359,8 +386,33 @@ async function handleExportExcel() {
     const vb = ws.getCell(`B${r}`); vb.value = val; vb.font = { bold: true }; vb.alignment = { horizontal: 'center' }; b(vb)
     const c = ws.getCell(`C${r}`); c.value = unit; c.font = { color: { argb: 'FF94A3B8' } }; c.alignment = { horizontal: 'center' }; b(c); r++
   }
+
+  // ---- 曲线图（统计数据之后、测量数据之前，与页面布局一致） ----
   r++
+  ws.mergeCells(`A${r}:C${r}`)
+  hdr(ws.getCell(`A${r}`)); ws.getCell(`A${r}`).value = '曲线图'; b(ws.getCell(`A${r}`))
+  r++
+  if (chartInstance) {
+    try {
+      const dataUrl = chartInstance.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' })
+      const imgId = wb.addImage({ base64: dataUrl, extension: 'png' })
+      const img = await new Promise((res, rej) => {
+        const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl
+      })
+      const imgW = 640; const imgH = Math.round(imgW * img.naturalHeight / img.naturalWidth)
+      // 图表图片浮于网格之上，按实际像素高度折算行数（25px/行 ≈ 紧凑排列）
+      const imgRows = Math.ceil(imgH / 25)
+      for (let i = 0; i < imgRows; i++) ws.getRow(r + i).height = 25
+      ws.addImage(imgId, { tl: { col: 0, row: r }, ext: { width: imgW, height: imgH } })
+      r += imgRows
+    } catch (e) {
+      console.error('Excel 图表嵌入失败:', e)
+    }
+  }
+
+  // ---- 测量数据 ----
   if (item.hole_angle?.length) {
+    r++
     ws.mergeCells(`A${r}:C${r}`); hdr(ws.getCell(`A${r}`)); ws.getCell(`A${r}`).value = '测量数据'; b(ws.getCell(`A${r}`)); r++
     for (const [ci, h] of ['#', '孔角度 (°)', '孔测量值 (mm)'].entries()) {
       const hc = ws.getCell(r, ci + 1); hc.value = h; hc.font = { bold: true }; hc.alignment = { horizontal: 'center' }; b(hc)
@@ -372,6 +424,7 @@ async function handleExportExcel() {
       ;[1, 2, 3].forEach(c => { ws.getCell(r, c).alignment = { horizontal: 'center' }; b(ws.getCell(r, c)) }); r++
     })
   }
+
   const buf = await wb.xlsx.writeBuffer()
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
