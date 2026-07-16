@@ -44,8 +44,11 @@
               <span class="blade-name">{{ b.blade_id }}</span>
               <span class="blade-sub">{{ b.operator || '-' }}</span>
             </div>
-            <span class="blade-tag" :class="b.mill_result === 'Success' ? 'ok' : 'fail'">
-              {{ b.mill_result || '-' }}
+            <span class="blade-time">{{ fmtTs(b.process_start_time) }}</span>
+            <span class="blade-tag-wrap">
+              <span class="blade-tag" :class="b.mill_result === 'Success' ? 'ok' : 'fail'">
+                {{ b.mill_result || '-' }}
+              </span>
             </span>
           </li>
         </ul>
@@ -340,7 +343,7 @@ function handleExportExcel() {
 /* Blade list */
 .blade-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
 .blade-item {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; align-items: center;
   padding: 12px 20px; cursor: pointer; border-bottom: 1px solid var(--border-light);
   transition: background 0.15s;
 }
@@ -348,6 +351,8 @@ function handleExportExcel() {
 .blade-info { display: flex; flex-direction: column; gap: 2px; }
 .blade-name { color: var(--text-primary); font-size: 14px; font-weight: 500; }
 .blade-sub { color: var(--text-muted); font-size: 12px; }
+.blade-time { color: var(--text-secondary); font-size: 12px; width: 170px; flex-shrink: 0; text-align: right; margin-left: auto; margin-right: 40px; }
+.blade-tag-wrap { width: 90px; flex-shrink: 0; display: flex; justify-content: flex-end; }
 .blade-tag { font-size: 11px; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
 .blade-tag.ok { background: var(--color-success-bg); color: var(--color-success-text); }
 .blade-tag.fail { background: var(--color-danger-bg); color: var(--color-danger-text); }

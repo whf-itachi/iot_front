@@ -41,7 +41,8 @@
             @click="selectBlade(b)"
           >
             <span class="blade-name">{{ b.blade_id }}</span>
-            <span class="blade-badges">
+            <span class="blade-time">{{ fmtTs(b.measure_time) }}</span>
+            <span class="blade-badge-wrap">
               <span v-if="b.before" class="badge ok">前</span>
               <span v-if="b.after" class="badge ok">后</span>
               <span v-if="!b.before && !b.after" class="badge none">无</span>
@@ -72,7 +73,7 @@
             <div class="rp-subtitle">
               <span>叶片 ID：{{ currentData.blade_id || '-' }}</span>
               <span>设备：{{ selectedBlade.device_name || '-' }}</span>
-              <span>测量时间：{{ fmtTs(currentData.measure_time || currentData._timestamp) }}</span>
+              <span>测量时间：{{ fmtTs(currentData.measure_time) }}</span>
             </div>
 
             <table class="rp-table">
@@ -477,13 +478,14 @@ async function handleExportExcel() {
 /* Blade list */
 .blade-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
 .blade-item {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; align-items: center;
   padding: 12px 20px; cursor: pointer; border-bottom: 1px solid var(--border-light);
   transition: background 0.15s;
 }
 .blade-item:hover { background: var(--bg-hover); }
 .blade-name { color: var(--text-primary); font-size: 14px; font-weight: 500; }
-.blade-badges { display: flex; gap: 4px; }
+.blade-time { color: var(--text-secondary); font-size: 12px; width: 170px; flex-shrink: 0; text-align: right; margin-left: auto; margin-right: 40px; }
+.blade-badge-wrap { width: 70px; flex-shrink: 0; display: flex; gap: 4px; justify-content: flex-end; }
 .badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; font-weight: 600; }
 .badge.ok { background: var(--color-success-bg); color: var(--color-success-text); }
 .badge.none { background: rgba(100,116,139,0.15); color: var(--text-muted); }
