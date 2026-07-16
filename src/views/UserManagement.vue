@@ -233,10 +233,12 @@ async function loadTree() {
 
     const flat = []
     function flatten(node, level) {
-      flat.push({ userId: node.userId, username: node.username, roleType: node.roleType, isMe: node.isMe, level })
+      if (!visibleIds || visibleIds.has(node.userId)) {
+        flat.push({ userId: node.userId, username: node.username, roleType: node.roleType, isMe: node.isMe, level })
+      }
       if (node.children) {
         for (const c of node.children) {
-          if (!visibleIds || visibleIds.has(c.userId)) flatten(c, level + 1)
+          flatten(c, level + 1)
         }
       }
     }
