@@ -30,7 +30,10 @@
 
       <!-- 叶片列表 -->
       <template v-else-if="!viewingBlade">
-        <div class="panel-title">叶片列表 · {{ selectedDevice.name }}</div>
+        <div class="panel-title-row">
+          <span class="panel-title">叶片列表 · {{ selectedDevice.name }}</span>
+          <button class="batch-download-btn" @click="showBatchDialog = true" :disabled="!blades.length">📥 批量下载</button>
+        </div>
         <div v-if="loadingBlades" class="panel-loading">加载中...</div>
         <div v-else-if="!blades.length" class="panel-empty">该设备暂无测量数据</div>
         <ul v-else class="blade-list">
@@ -119,6 +122,38 @@
         <button class="back-btn" style="margin-top:12px" @click="viewingBlade = false">← 返回叶片列表</button>
       </div>
     </main>
+
+    <!-- 批量下载弹窗 -->
+    <Teleport to="body">
+      <div v-if="showBatchDialog" class="dialog-overlay" @click.self="showBatchDialog = false">
+        <div class="dialog-box">
+          <div class="dialog-title">批量下载 — 平面度测量数据</div>
+          <div class="dialog-body">
+            <div class="dialog-desc">
+              设备：<strong>{{ selectedDevice?.name }}</strong>，当前共 <strong>{{ blades.length }}</strong> 条叶片记录
+            </div>
+            <div class="dialog-note">
+              每个叶片单独一个 Excel 文件，加工前/后数据在同一文件的不同工作表中。所有文件打包为 ZIP 下载。
+            </div>
+            <div class="dialog-field">
+              <label>开始日期</label>
+              <input type="date" v-model="batchStart" class="dialog-input" />
+            </div>
+            <div class="dialog-field">
+              <label>结束日期</label>
+              <input type="date" v-model="batchEnd" class="dialog-input" />
+            </div>
+            <div class="dialog-hint">默认筛选最近一周的测量数据，您可手动调整日期范围</div>
+          </div>
+          <div class="dialog-footer">
+            <button class="dialog-btn cancel" @click="showBatchDialog = false">取消</button>
+            <button class="dialog-btn confirm" @click="doBatchDownload" :disabled="batchDownloading">
+              {{ batchDownloading ? '下载中...' : '确认下载' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -145,6 +180,59 @@ let chartInstance = null
 let chartInitPromise = null  // 防止并发初始化
 
 const currentData = ref(null)
+
+// ===== Batch Download =====
+const showBatchDialog = ref(false)
+const batchDownloading = ref(false)
+const batchStart = ref('')
+const batchEnd = ref('')
+
+function initBatchDates() {
+  const now = new Date()
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  batchStart.value = weekAgo.toISOString().slice(0, 10)
+  batchEnd.value = now.toISOString().slice(0, 10)
+}
+
+async function doBatchDownload() {
+  if (!selectedDevice.value) return
+  batchDownloading.value = true
+  try {
+    const res = await api.post('/iot/flatness/batch-download', {
+      deviceNames: [selectedDevice.value.name],
+      startTime: batchStart.value || undefined,
+      endTime: batchEnd.value || undefined,
+    }, { responseType: 'blob' })
+
+    // Check if response is actually a JSON error (not a zip file)
+    const contentType = res.headers['content-type'] || ''
+    if (contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const err = JSON.parse(text)
+      alert(err.message || '未找到数据')
+      batchDownloading.value = false
+      return
+    }
+
+    const blob = res.data
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`
+    a.download = `平面度_批量_${ts}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    showBatchDialog.value = false
+  } catch (e) {
+    alert('批量下载失败: ' + (e?.message || '未知错误'))
+  }
+  batchDownloading.value = false
+}
+
+watch(showBatchDialog, (v) => { if (v) initBatchDates() })
 
 onMounted(async () => {
   loadingDevices.value = true
@@ -369,67 +457,34 @@ async function handleExportPDF() {
 }
 
 async function handleExportExcel() {
-  const ExcelJS = await import('exceljs')
   const item = currentData.value; if (!item) return
-  const wb = new ExcelJS.Workbook()
-  const ws = wb.addWorksheet((item.blade_id || 'data').substring(0, 31))
-  ws.getColumn(1).width = 30; ws.getColumn(2).width = 30; ws.getColumn(3).width = 30
-  const border = { style: 'thin', color: { argb: 'FF2D3B4F' } }
-  const b = c => { c.border = { top: border, bottom: border, left: border, right: border } }
-  const hdr = c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A2940' } }; c.font = { bold: true, size: 11, color: { argb: 'FF60C7F3' } } }
-
-  let r = 1
-  ws.mergeCells(`A${r}:C${r}`); const t = ws.getCell(`A${r}`); t.value = `平面度报表（${stage.value === 'before' ? '加工前' : '加工后'}）`; t.font = { bold: true, size: 16, color: { argb: 'FF0F172A' } }; t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF60C7F3' } }; t.alignment = { horizontal: 'center', vertical: 'middle' }; b(t); ws.getRow(r).height = 30; r++
-  ws.mergeCells(`A${r}:C${r}`); const s = ws.getCell(`A${r}`); s.value = `叶片ID：${item.blade_id || '-'}  设备：${selectedBlade.value?.device_name || '-'}`; s.font = { size: 10, color: { argb: 'FFA0AEC0' } }; b(s); r++
-  ws.mergeCells(`A${r}:C${r}`); hdr(ws.getCell(`A${r}`)); ws.getCell(`A${r}`).value = '统计数据'; b(ws.getCell(`A${r}`)); r++
-  for (const [label, val, unit] of [['最大值', fmtVal(item.max_value, 2), 'mm'], ['最小值', fmtVal(item.min_value, 2), 'mm'], ['峰峰值', fmtVal(item.pv_value, 2), 'mm'], ['RMS', fmtVal(item.rms, 2), 'mm']]) {
-    const a = ws.getCell(`A${r}`); a.value = label; a.font = { color: { argb: 'FF64748B' } }; a.alignment = { horizontal: 'center' }; b(a)
-    const vb = ws.getCell(`B${r}`); vb.value = val; vb.font = { bold: true }; vb.alignment = { horizontal: 'center' }; b(vb)
-    const c = ws.getCell(`C${r}`); c.value = unit; c.font = { color: { argb: 'FF94A3B8' } }; c.alignment = { horizontal: 'center' }; b(c); r++
-  }
-
-  // ---- 曲线图（统计数据之后、测量数据之前，与页面布局一致） ----
-  r++
-  ws.mergeCells(`A${r}:C${r}`)
-  hdr(ws.getCell(`A${r}`)); ws.getCell(`A${r}`).value = '曲线图'; b(ws.getCell(`A${r}`))
-  r++
-  if (chartInstance) {
-    try {
-      const dataUrl = chartInstance.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#ffffff' })
-      const imgId = wb.addImage({ base64: dataUrl, extension: 'png' })
-      const img = await new Promise((res, rej) => {
-        const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl
-      })
-      const imgW = 640; const imgH = Math.round(imgW * img.naturalHeight / img.naturalWidth)
-      // 图表图片浮于网格之上，按实际像素高度折算行数（25px/行 ≈ 紧凑排列）
-      const imgRows = Math.ceil(imgH / 25)
-      for (let i = 0; i < imgRows; i++) ws.getRow(r + i).height = 25
-      ws.addImage(imgId, { tl: { col: 0, row: r }, ext: { width: imgW, height: imgH } })
-      r += imgRows
-    } catch (e) {
-      console.error('Excel 图表嵌入失败:', e)
-    }
-  }
-
-  // ---- 测量数据 ----
-  if (item.hole_angle?.length) {
-    r++
-    ws.mergeCells(`A${r}:C${r}`); hdr(ws.getCell(`A${r}`)); ws.getCell(`A${r}`).value = '测量数据'; b(ws.getCell(`A${r}`)); r++
-    for (const [ci, h] of ['#', '孔角度 (°)', '孔测量值 (mm)'].entries()) {
-      const hc = ws.getCell(r, ci + 1); hc.value = h; hc.font = { bold: true }; hc.alignment = { horizontal: 'center' }; b(hc)
-    }
-    r++
-    item.hole_angle.forEach((a, di) => {
-      ws.getCell(`A${r}`).value = di + 1; ws.getCell(`B${r}`).value = Number(a); ws.getCell(`B${r}`).numFmt = '0.0000'
-      ws.getCell(`C${r}`).value = item.hole_value?.[di] != null ? Number(item.hole_value[di]) : null; ws.getCell(`C${r}`).numFmt = '0.0000'
-      ;[1, 2, 3].forEach(c => { ws.getCell(r, c).alignment = { horizontal: 'center' }; b(ws.getCell(r, c)) }); r++
+  try {
+    const res = await api.get('/iot/flatness/download', {
+      params: {
+        bladeId: selectedBlade.value?.blade_id,
+        stage: stage.value,
+      },
+      responseType: 'blob',
     })
+    const contentType = res.headers['content-type'] || ''
+    if (contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const err = JSON.parse(text)
+      alert(err.message || '导出失败')
+      return
+    }
+    const blob = res.data
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `平面度_${item.blade_id || 'data'}_${stage.value === 'after' ? '加工后' : '加工前'}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Excel 导出失败: ' + (e?.message || '未知错误'))
   }
-
-  const buf = await wb.xlsx.writeBuffer()
-  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
-  a.download = `平面度_${item.blade_id || 'data'}_${stage.value}.xlsx`; a.click()
 }
 </script>
 
@@ -548,4 +603,66 @@ async function handleExportExcel() {
 .table-wrap th { text-align: center; padding: 8px 14px; color: var(--text-muted); background: var(--bg-table-header); border-bottom: 1px solid var(--border-default); font-weight: 600; }
 .table-wrap td { padding: 6px 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); text-align: center; }
 .table-wrap tr:hover td { background: var(--bg-hover); }
+
+/* ===== Batch Download ===== */
+.panel-title-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; border-bottom: 1px solid var(--border-light);
+}
+.panel-title-row .panel-title {
+  padding: 0; border-bottom: none; font-size: 14px;
+}
+.batch-download-btn {
+  padding: 5px 14px; background: linear-gradient(135deg, rgba(96,199,243,0.15), rgba(56,189,248,0.08));
+  border: 1px solid rgba(96,199,243,0.3); border-radius: 6px;
+  color: var(--color-primary); font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; white-space: nowrap;
+}
+.batch-download-btn:hover { background: linear-gradient(135deg, rgba(96,199,243,0.25), rgba(56,189,248,0.15)); border-color: var(--color-primary); }
+.batch-download-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999;
+  display: flex; justify-content: center; align-items: center;
+}
+.dialog-box {
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  width: 420px; max-width: 90vw;
+}
+.dialog-title {
+  padding: 16px 20px; font-size: 15px; font-weight: 700;
+  color: var(--text-primary); border-bottom: 1px solid var(--border-light);
+}
+.dialog-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dialog-desc { font-size: 13px; color: var(--text-secondary); }
+.dialog-desc strong { color: var(--text-primary); }
+.dialog-note {
+  font-size: 12px; color: var(--color-primary); padding: 6px 10px;
+  background: rgba(96,199,243,0.08); border-radius: 6px;
+  border-left: 3px solid var(--color-primary);
+}
+.dialog-field { display: flex; align-items: center; gap: 12px; }
+.dialog-field label { width: 70px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+.dialog-input {
+  flex: 1; padding: 7px 10px; background: var(--bg-page);
+  border: 1px solid var(--border-default); border-radius: 6px;
+  color: var(--text-primary); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.dialog-input:focus { border-color: var(--border-focus); }
+.dialog-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.dialog-footer { padding: 14px 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border-light); }
+.dialog-btn {
+  padding: 7px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.2s; border: 1px solid var(--border-default);
+}
+.dialog-btn.cancel { background: var(--bg-card); color: var(--text-secondary); }
+.dialog-btn.cancel:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.dialog-btn.confirm {
+  background: var(--color-primary); color: #0f172a; border-color: var(--color-primary);
+  font-weight: 600;
+}
+.dialog-btn.confirm:hover { opacity: 0.9; }
+.dialog-btn.confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

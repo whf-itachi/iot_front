@@ -30,7 +30,10 @@
 
       <!-- 叶片列表 -->
       <template v-else-if="!viewingBlade">
-        <div class="panel-title">叶片列表 · {{ selectedDevice.name }}</div>
+        <div class="panel-title-row">
+          <span class="panel-title">叶片列表 · {{ selectedDevice.name }}</span>
+          <button class="batch-download-btn" @click="showBatchDialog = true" :disabled="!blades.length">📥 批量下载</button>
+        </div>
         <div v-if="loadingBlades" class="panel-loading">加载中...</div>
         <div v-else-if="!blades.length" class="panel-empty">该设备暂无加工日志</div>
         <ul v-else class="blade-list">
@@ -122,11 +125,40 @@
         </div>
       </template>
     </main>
+
+    <!-- 批量下载弹窗 -->
+    <Teleport to="body">
+      <div v-if="showBatchDialog" class="dialog-overlay" @click.self="showBatchDialog = false">
+        <div class="dialog-box">
+          <div class="dialog-title">批量下载 — 叶片加工日志</div>
+          <div class="dialog-body">
+            <div class="dialog-desc">
+              设备：<strong>{{ selectedDevice?.name }}</strong>，当前共 <strong>{{ blades.length }}</strong> 条叶片记录
+            </div>
+            <div class="dialog-field">
+              <label>开始日期</label>
+              <input type="date" v-model="batchStart" class="dialog-input" />
+            </div>
+            <div class="dialog-field">
+              <label>结束日期</label>
+              <input type="date" v-model="batchEnd" class="dialog-input" />
+            </div>
+            <div class="dialog-hint">默认筛选最近一周的加工叶片，每个叶片单独一个 Excel 文件，打包为 ZIP 下载</div>
+          </div>
+          <div class="dialog-footer">
+            <button class="dialog-btn cancel" @click="showBatchDialog = false">取消</button>
+            <button class="dialog-btn confirm" @click="doBatchDownload" :disabled="batchDownloading">
+              {{ batchDownloading ? '下载中...' : '确认下载' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
 
@@ -143,6 +175,60 @@ const viewingBlade = ref(false)
 const loadingBlades = ref(false)
 
 const currentLog = ref(null)
+
+// ===== Batch Download =====
+const showBatchDialog = ref(false)
+const batchDownloading = ref(false)
+const batchStart = ref('')
+const batchEnd = ref('')
+
+function initBatchDates() {
+  const now = new Date()
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  batchStart.value = weekAgo.toISOString().slice(0, 10)
+  batchEnd.value = now.toISOString().slice(0, 10)
+}
+
+async function doBatchDownload() {
+  if (!selectedDevice.value) return
+  batchDownloading.value = true
+  try {
+    const res = await api.post('/iot/process-log/batch-download', {
+      deviceNames: [selectedDevice.value.name],
+      startTime: batchStart.value || undefined,
+      endTime: batchEnd.value || undefined,
+    }, { responseType: 'blob' })
+
+    // Check if response is actually a JSON error (not a zip file)
+    const contentType = res.headers['content-type'] || ''
+    if (contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const err = JSON.parse(text)
+      alert(err.message || '未找到数据')
+      batchDownloading.value = false
+      return
+    }
+
+    const blob = res.data
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`
+    a.download = `加工日志_批量_${ts}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    showBatchDialog.value = false
+  } catch (e) {
+    alert('批量下载失败: ' + (e?.message || '未知错误'))
+  }
+  batchDownloading.value = false
+}
+
+// Watch dialog open to init dates
+watch(showBatchDialog, (v) => { if (v) initBatchDates() })
 
 onMounted(async () => {
   loadingDevices.value = true
@@ -249,52 +335,32 @@ async function handleExportPDF() {
   doc.save(`加工日志_${selectedBlade.value?.blade_id || 'report'}.pdf`)
 }
 
-function handleExportExcel() {
+async function handleExportExcel() {
   const log = currentLog.value; if (!log) return
-  const v = (val, dec) => (val != null && val !== '') ? Number(val).toFixed(dec) : '-'
-  const ts = (t) => t ? new Date(Number(t) > MILLISECOND_THRESHOLD ? Number(t) : Number(t)*1000).toLocaleString('zh-CN') : '-'
-  const ok = (s) => s === 'Success' ? 'g' : 'r'
-
-  let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>td{padding:4px 8px;border:.5pt solid rgba(148,163,184,0.15)}.s1{background:#60c7f3;color:#0f172a;font-size:16pt;font-weight:bold;text-align:center}.s2{background:rgba(96,199,243,0.1);color:#60c7f3;font-weight:bold}.s3{background:#1a2940;color:#a0aec0;text-align:right}.s4{font-weight:bold;color:#f1f5f9}.g{color:#4ade80}.r{color:#fca5a5}</style></head><body>`
-  html += `<table><colgroup><col width="160"><col width="340"><col width="80"></colgroup>
-<tr><td colspan="3" class="s1">螺栓孔加工结果</td></tr>
-<tr><td colspan="3">叶片ID：${log.blade_id||'-'}  |  设备：${selectedBlade.value?.device_name||'-'}  |  上报时间：${ts(log._timestamp)}  |  结果：<span class="${ok(log.mill_result)}">${log.mill_result||'-'}</span></td></tr>
-<tr><td colspan="3" class="s2">基本信息</td></tr>
-<tr><td class="s3">操作员</td><td class="s4">${log.operator||'-'}</td><td></td></tr>
-<tr><td class="s3">工厂</td><td class="s4">${log.factory||'-'}</td><td></td></tr>
-<tr><td class="s3">设备</td><td class="s4">${log.device_type_code||log._deviceName||'-'}</td><td></td></tr>
-<tr><td class="s3">加工开始时间</td><td class="s4">${ts(log.process_start_time)}</td><td></td></tr>
-<tr><td class="s3">加工结束时间</td><td class="s4">${ts(log.process_end_time)}</td><td></td></tr>
-<tr><td class="s3">总时长</td><td class="s4">${v(log.total_duration,1)}</td><td>Min</td></tr>
-<tr><td colspan="3" class="s2">扫描结果</td></tr>
-<tr><td class="s3">扫描结果</td><td class="s4 ${ok(log.scan_result)}">${log.scan_result||'-'}</td><td></td></tr>
-<tr><td class="s3">螺栓孔最高点</td><td class="s4">${v(log.bolt_sleeve_max,3)}</td><td>mm</td></tr>
-<tr><td class="s3">螺栓孔最低点</td><td class="s4">${v(log.bolt_sleeve_min,3)}</td><td>mm</td></tr>
-<tr><td class="s3">Pitch角度</td><td class="s4">${v(log.pitch_angle,3)}</td><td>°</td></tr>
-<tr><td class="s3">Yaw角度</td><td class="s4">${v(log.yaw_angle,3)}</td><td>°</td></tr>
-<tr><td class="s3">BCD预估直径</td><td class="s4">${v(log.bcd_estimate,3)}</td><td>mm</td></tr>
-<tr><td class="s3">加工前平面度</td><td class="s4">${v(log.before_flatness,3)}</td><td>mm</td></tr>
-<tr><td colspan="3" class="s2">铣磨结果</td></tr>
-<tr><td class="s3">铣磨深度</td><td class="s4">${v(log.mill_depth,1)}</td><td>mm</td></tr>
-<tr><td class="s3">铣磨圈数</td><td class="s4">${log.mill_cycles!=null?log.mill_cycles:'-'}</td><td></td></tr>
-<tr><td class="s3">最终结果</td><td class="s4 ${ok(log.mill_result)}">${log.mill_result||'-'}</td><td></td></tr>
-<tr><td class="s3">加工后平面度</td><td class="s4">${v(log.after_flatness,3)}</td><td>mm</td></tr>
-<tr><td colspan="3" class="s2">Process Time</td></tr>
-<tr><td class="s3">调平和支撑耗时</td><td class="s4">${v(log.adjust_leg_time,0)}</td><td>s</td></tr>
-<tr><td class="s3">激光调整耗时</td><td class="s4">${v(log.laser_adjust_time,0)}</td><td>s</td></tr>
-<tr><td class="s3">粗扫耗时</td><td class="s4">${v(log.rough_scan_time,0)}</td><td>s</td></tr>
-<tr><td class="s3">精扫耗时</td><td class="s4">${v(log.fine_scan_time,0)}</td><td>s</td></tr>
-<tr><td class="s3">铣磨耗时</td><td class="s4">${v(log.mill_time,1)}</td><td>Min</td></tr>
-<tr><td class="s3">扫描报告耗时</td><td class="s4">${v(log.scan_report_time,0)}</td><td>s</td></tr>
-<tr><td colspan="3" class="s2">铣磨功率</td></tr>
-<tr><td class="s3">上部单元平均功率</td><td class="s4">${v(log.upper_avg_power,2)}</td><td>%</td></tr>
-<tr><td class="s3">上部单元最大功率</td><td class="s4">${v(log.upper_max_power,2)}</td><td>%</td></tr>
-<tr><td class="s3">下部单元平均功率</td><td class="s4">${v(log.lower_avg_power,2)}</td><td>%</td></tr>
-<tr><td class="s3">下部单元最大功率</td><td class="s4">${v(log.lower_max_power,2)}</td><td>%</td></tr></table>`
-  html += '</body></html>'
-  const blob = new Blob(['﻿' + html], { type: 'application/vnd.ms-excel;charset=utf-8' })
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
-  a.download = `加工日志_${log.blade_id||'report'}.xls`; a.click()
+  try {
+    const res = await api.get('/iot/process-log/download', {
+      params: { bladeId: log.blade_id },
+      responseType: 'blob',
+    })
+    const contentType = res.headers['content-type'] || ''
+    if (contentType.includes('application/json')) {
+      const text = await res.data.text()
+      const err = JSON.parse(text)
+      alert(err.message || '导出失败')
+      return
+    }
+    const blob = res.data
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `加工日志_${log.blade_id || 'report'}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('Excel 导出失败: ' + (e?.message || '未知错误'))
+  }
 }
 </script>
 
@@ -401,4 +467,61 @@ function handleExportExcel() {
 .rp-unit { color: var(--text-muted); width: 55px; font-size: 12px; }
 .c-ok { color: var(--color-success-text); font-weight: 700; }
 .c-fail { color: var(--color-danger-text); font-weight: 700; }
+
+/* ===== Batch Download ===== */
+.panel-title-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; border-bottom: 1px solid var(--border-light);
+}
+.panel-title-row .panel-title {
+  padding: 0; border-bottom: none; font-size: 14px;
+}
+.batch-download-btn {
+  padding: 5px 14px; background: linear-gradient(135deg, rgba(96,199,243,0.15), rgba(56,189,248,0.08));
+  border: 1px solid rgba(96,199,243,0.3); border-radius: 6px;
+  color: var(--color-primary); font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; white-space: nowrap;
+}
+.batch-download-btn:hover { background: linear-gradient(135deg, rgba(96,199,243,0.25), rgba(56,189,248,0.15)); border-color: var(--color-primary); }
+.batch-download-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.dialog-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999;
+  display: flex; justify-content: center; align-items: center;
+}
+.dialog-box {
+  background: var(--bg-card); border: 1px solid var(--border-default);
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  width: 420px; max-width: 90vw;
+}
+.dialog-title {
+  padding: 16px 20px; font-size: 15px; font-weight: 700;
+  color: var(--text-primary); border-bottom: 1px solid var(--border-light);
+}
+.dialog-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dialog-desc { font-size: 13px; color: var(--text-secondary); }
+.dialog-desc strong { color: var(--text-primary); }
+.dialog-field { display: flex; align-items: center; gap: 12px; }
+.dialog-field label { width: 70px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+.dialog-input {
+  flex: 1; padding: 7px 10px; background: var(--bg-page);
+  border: 1px solid var(--border-default); border-radius: 6px;
+  color: var(--text-primary); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.dialog-input:focus { border-color: var(--border-focus); }
+.dialog-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.dialog-footer { padding: 14px 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border-light); }
+.dialog-btn {
+  padding: 7px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: all 0.2s; border: 1px solid var(--border-default);
+}
+.dialog-btn.cancel { background: var(--bg-card); color: var(--text-secondary); }
+.dialog-btn.cancel:hover { border-color: var(--text-muted); color: var(--text-primary); }
+.dialog-btn.confirm {
+  background: var(--color-primary); color: #0f172a; border-color: var(--color-primary);
+  font-weight: 600;
+}
+.dialog-btn.confirm:hover { opacity: 0.9; }
+.dialog-btn.confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
