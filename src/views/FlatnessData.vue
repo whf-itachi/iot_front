@@ -36,22 +36,31 @@
         </div>
         <div v-if="loadingBlades" class="panel-loading">加载中...</div>
         <div v-else-if="!blades.length" class="panel-empty">该设备暂无测量数据</div>
-        <ul v-else class="blade-list">
-          <li
-            v-for="b in blades"
-            :key="b.blade_id"
-            class="blade-item"
-            @click="selectBlade(b)"
-          >
-            <span class="blade-name">{{ b.blade_id }}</span>
-            <span class="blade-time">{{ fmtTs(b.measure_time) }}</span>
-            <span class="blade-badge-wrap">
-              <span v-if="b.before" class="badge ok">前</span>
-              <span v-if="b.after" class="badge ok">后</span>
-              <span v-if="!b.before && !b.after" class="badge none">无</span>
-            </span>
-          </li>
-        </ul>
+        <template v-else>
+          <ul class="blade-list">
+            <li
+              v-for="b in pagedBlades"
+              :key="b.blade_id"
+              class="blade-item"
+              @click="selectBlade(b)"
+            >
+              <span class="blade-name">{{ b.blade_id }}</span>
+              <span class="blade-time">{{ fmtTs(b.measure_time) }}</span>
+              <span class="blade-badge-wrap">
+                <span v-if="b.before" class="badge ok">前</span>
+                <span v-if="b.after" class="badge ok">后</span>
+                <span v-if="!b.before && !b.after" class="badge none">无</span>
+              </span>
+            </li>
+          </ul>
+          <Pagination
+            :total="blades.length"
+            :model-value="currentPage"
+            :page-size="pageSize"
+            @update:model-value="currentPage = $event"
+            @update:page-size="onPageSizeChange"
+          />
+        </template>
       </template>
 
       <!-- 详情 -->
@@ -158,9 +167,10 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onBeforeUnmount, onMounted } from 'vue'
+import { ref, watch, computed, nextTick, onBeforeUnmount, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import Pagination from '../components/Pagination.vue'
 
 const MILLISECOND_THRESHOLD = 1e12
 const auth = useAuthStore()
@@ -173,6 +183,14 @@ const blades = ref([])
 const selectedBlade = ref(null)
 const viewingBlade = ref(false)
 const loadingBlades = ref(false)
+
+// ===== Pagination =====
+const pageSize = ref(20)
+const currentPage = ref(1)
+const pagedBlades = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return blades.value.slice(start, start + pageSize.value)
+})
 
 const stage = ref('before')
 const chartRef = ref(null)
@@ -264,12 +282,18 @@ async function selectDevice(d) {
   selectedBlade.value = null
   viewingBlade.value = false
   currentData.value = null
+  currentPage.value = 1
   loadingBlades.value = true
   try {
     const res = await api.get('/iot/flatness/blades', { params: { deviceName: d.name } })
     blades.value = res.data.success ? (res.data.results || []) : []
   } catch (e) { blades.value = [] }
   loadingBlades.value = false
+}
+
+function onPageSizeChange(size) {
+  pageSize.value = size
+  currentPage.value = 1
 }
 
 function selectBlade(b) {

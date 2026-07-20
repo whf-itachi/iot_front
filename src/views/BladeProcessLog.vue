@@ -36,25 +36,33 @@
         </div>
         <div v-if="loadingBlades" class="panel-loading">加载中...</div>
         <div v-else-if="!blades.length" class="panel-empty">该设备暂无加工日志</div>
-        <ul v-else class="blade-list">
-          <li
-            v-for="b in blades"
-            :key="b.blade_id"
-            class="blade-item"
-            @click="selectBlade(b)"
-          >
-            <div class="blade-info">
-              <span class="blade-name">{{ b.blade_id }}</span>
-              <span class="blade-sub">{{ b.operator || '-' }}</span>
-            </div>
-            <span class="blade-time">{{ fmtTs(b.process_start_time) }}</span>
-            <span class="blade-tag-wrap">
-              <span class="blade-tag" :class="b.mill_result === 'Success' ? 'ok' : 'fail'">
-                {{ b.mill_result || '-' }}
+        <template v-else>
+          <ul class="blade-list">
+            <li
+              v-for="b in pagedBlades"
+              :key="b.blade_id"
+              class="blade-item"
+              @click="selectBlade(b)"
+            >
+              <div class="blade-info">
+                <span class="blade-name">{{ b.blade_id }}</span>
+              </div>
+              <span class="blade-time">{{ fmtTs(b.process_start_time) }}</span>
+              <span class="blade-tag-wrap">
+                <span class="blade-tag" :class="b.mill_result === 'Success' ? 'ok' : 'fail'">
+                  {{ b.mill_result || '-' }}
+                </span>
               </span>
-            </span>
-          </li>
-        </ul>
+            </li>
+          </ul>
+          <Pagination
+            :total="blades.length"
+            :model-value="currentPage"
+            :page-size="pageSize"
+            @update:model-value="currentPage = $event"
+            @update:page-size="onPageSizeChange"
+          />
+        </template>
       </template>
 
       <!-- 详情 -->
@@ -158,9 +166,10 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import Pagination from '../components/Pagination.vue'
 
 const MILLISECOND_THRESHOLD = 1e12
 const auth = useAuthStore()
@@ -173,6 +182,14 @@ const blades = ref([])
 const selectedBlade = ref(null)
 const viewingBlade = ref(false)
 const loadingBlades = ref(false)
+
+// ===== Pagination =====
+const pageSize = ref(20)
+const currentPage = ref(1)
+const pagedBlades = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return blades.value.slice(start, start + pageSize.value)
+})
 
 const currentLog = ref(null)
 
@@ -260,12 +277,18 @@ async function selectDevice(d) {
   selectedBlade.value = null
   viewingBlade.value = false
   currentLog.value = null
+  currentPage.value = 1
   loadingBlades.value = true
   try {
     const res = await api.get('/iot/process-log/blades', { params: { deviceName: d.name } })
     blades.value = res.data.success ? (res.data.results || []) : []
   } catch (e) { blades.value = [] }
   loadingBlades.value = false
+}
+
+function onPageSizeChange(size) {
+  pageSize.value = size
+  currentPage.value = 1
 }
 
 function selectBlade(b) {
@@ -410,13 +433,12 @@ async function handleExportExcel() {
 .blade-list { flex: 1; overflow-y: auto; list-style: none; padding: 0; margin: 0; }
 .blade-item {
   display: flex; align-items: center;
-  padding: 12px 20px; cursor: pointer; border-bottom: 1px solid var(--border-light);
+  padding: 10px 20px; cursor: pointer; border-bottom: 1px solid var(--border-light);
   transition: background 0.15s;
 }
 .blade-item:hover { background: var(--bg-hover); }
-.blade-info { display: flex; flex-direction: column; gap: 2px; }
+.blade-info { display: flex; align-items: center; }
 .blade-name { color: var(--text-primary); font-size: 14px; font-weight: 500; }
-.blade-sub { color: var(--text-muted); font-size: 12px; }
 .blade-time { color: var(--text-secondary); font-size: 12px; width: 170px; flex-shrink: 0; text-align: right; margin-left: auto; margin-right: 40px; }
 .blade-tag-wrap { width: 90px; flex-shrink: 0; display: flex; justify-content: flex-end; }
 .blade-tag { font-size: 11px; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
