@@ -43,8 +43,14 @@ api.interceptors.response.use(
   async error => {
     const originalRequest = error.config
 
-    // 只处理 401，且不重试 refresh 自身
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // 已经用新 Token 重试过一次仍 401 → Refresh 后的 Token 仍无效，直接跳登录
+    if (originalRequest?._retry && error.response?.status === 401) {
+      redirectToLogin()
+      return Promise.reject(error)
+    }
+
+    // 只处理 401
+    if (error.response?.status !== 401) {
       return Promise.reject(error)
     }
 
@@ -59,6 +65,7 @@ api.interceptors.response.use(
       return new Promise((resolve, reject) => {
         refreshQueue.push({ resolve, reject })
       }).then(token => {
+        originalRequest._retry = true
         originalRequest.headers['X-Access-Token'] = token
         return api(originalRequest)
       })
@@ -82,14 +89,20 @@ api.interceptors.response.use(
         originalRequest.headers['X-Access-Token'] = newToken
         return api(originalRequest)
       }
+      // Refresh 接口返回 success=false（Refresh Token 失效等）→ 跳登录
+      rejectQueue(error)
+      redirectToLogin()
+      return Promise.reject(error)
     } catch (_) {
-      // Refresh 也失败了
+      // Refresh 请求本身失败（网络异常 / Refresh Token 已过期返回 401）
+      rejectQueue(error)
+      redirectToLogin()
+      return Promise.reject(error)
+    } finally {
+      // 关键修复：无论刷新成功或失败，都必须释放刷新锁，
+      // 否则后续 401 会一直排队 pending，导致页面无数据且无法自动跳登录。
+      isRefreshing = false
     }
-
-    rejectQueue(error)
-    isRefreshing = false
-    redirectToLogin()
-    return Promise.reject(error)
   }
 )
 
