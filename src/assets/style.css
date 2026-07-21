@@ -109,7 +109,7 @@ button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; transform: n
   border-bottom: 1px solid var(--border-light);
   display: flex; align-items: center; gap: 10px;
 }
-.sidebar .logo .icon { font-size: 22px; }
+.sidebar .logo .logo-icon { width: 26px; height: 26px; object-fit: contain; border-radius: 6px; flex-shrink: 0; }
 .menu { flex: 1; padding: 12px 0; }
 .menu-item {
   display: flex; align-items: center; gap: 12px; padding: 11px 20px; margin: 2px 12px;

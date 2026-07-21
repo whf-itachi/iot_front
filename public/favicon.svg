@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="IoT 叶片加工监控平台">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#16304d"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#67e8f9" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#67e8f9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- 圆角背景，沿用站点深蓝主题 -->
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="url(#bg)"/>
+
+  <!-- 叶片 / 涡轮叶片造型 -->
+  <path d="M32 11 C 19 24, 20 45, 32 53 C 44 45, 45 24, 32 11 Z" fill="url(#blade)"/>
+
+  <!-- 叶脉 -->
+  <path d="M32 15 L32 49" stroke="#0f172a" stroke-width="1.6" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- IoT 传感节点 + 光晕 -->
+  <circle cx="32" cy="40" r="9" fill="url(#glow)"/>
+  <circle cx="32" cy="40" r="4" fill="#e0f7ff"/>
+  <circle cx="32" cy="40" r="4" fill="none" stroke="#0ea5b7" stroke-width="1.5"/>
+
+  <!-- 无线信号弧（IoT / 联网） -->
+  <g fill="none" stroke="#a5f3fc" stroke-width="2" stroke-linecap="round">
+    <path d="M46 17 a7 7 0 0 1 7 7"/>
+    <path d="M49 14 a11 11 0 0 1 11 11" opacity="0.7"/>
+  </g>
+</svg>

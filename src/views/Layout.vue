@@ -2,7 +2,7 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="logo">
-        <span class="icon">📊</span>
+        <img src="/haitch.png" class="logo-icon" alt="IoT 监控平台" />
         <span>IoT 监控平台</span>
       </div>
       <nav class="menu">
