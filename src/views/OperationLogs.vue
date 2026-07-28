@@ -13,10 +13,7 @@
         </div>
         <div class="filter-item">
           <label>操作类型</label>
-          <select v-model="filterType" class="form-input">
-            <option value="">全部</option>
-            <option v-for="t in operationTypes" :key="t" :value="t">{{ t }}</option>
-          </select>
+          <input v-model="filterType" class="form-input" placeholder="输入操作类型搜索" @keyup.enter="search" />
         </div>
         <div class="filter-item">
           <label>开始时间</label>
@@ -109,8 +106,6 @@ const filterType = ref('')
 const filterStartTime = ref('')
 const filterEndTime = ref('')
 
-const operationTypes = ref([])
-
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value) || 1)
 const startRow = computed(() => total.value === 0 ? 0 : (pageNo.value - 1) * pageSize.value + 1)
 const endRow = computed(() => Math.min(pageNo.value * pageSize.value, total.value))
@@ -152,7 +147,7 @@ async function fetchLogs() {
   try {
     const params = { pageNo: pageNo.value, pageSize: pageSize.value }
     if (filterAccount.value.trim()) params.account = filterAccount.value.trim()
-    if (filterType.value) params.operationType = filterType.value
+    if (filterType.value.trim()) params.operationType = filterType.value.trim()
     if (filterStartTime.value) params.startTime = filterStartTime.value
     if (filterEndTime.value) params.endTime = filterEndTime.value
 
@@ -167,13 +162,6 @@ async function fetchLogs() {
     error.value = '加载失败: ' + (e.message || '网络错误')
   }
   loading.value = false
-}
-
-async function fetchTypes() {
-  try {
-    const res = await api.get('/sys/operationLog/types')
-    if (res.data.success) operationTypes.value = res.data.result || []
-  } catch (_) {}
 }
 
 function onPageSizeChange() { pageNo.value = 1; fetchLogs() }
@@ -191,7 +179,7 @@ function goPage(p) {
   pageNo.value = p; fetchLogs()
 }
 
-onMounted(() => { fetchTypes(); fetchLogs() })
+onMounted(() => { fetchLogs() })
 </script>
 
 <style scoped>
