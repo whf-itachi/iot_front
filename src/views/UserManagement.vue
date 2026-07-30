@@ -152,6 +152,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import { passwordStrengthError } from '../utils/password'
 
 const auth = useAuthStore()
 const users = ref([]); const allUsers = ref([]); const loading = ref(false); const error = ref('')
@@ -353,6 +354,8 @@ async function handleResetPwd() {
   resetPwdMsg.value = ''
   if (!resetNewPwd.value) { resetPwdMsg.value = '请输入新密码'; return }
   if (resetNewPwd.value !== resetConfirmPwd.value) { resetPwdMsg.value = '两次密码不一致'; return }
+  const pwdErr = passwordStrengthError(resetNewPwd.value)
+  if (pwdErr) { resetPwdMsg.value = pwdErr; return }
   resetPwdSaving.value = true
   try {
     const res = await api.put('/sys/user/edit', { password: resetNewPwd.value }, { params: { id: resetPwdTarget.value.id } })
@@ -390,6 +393,8 @@ async function handleSave() {
     if (showEdit.value) {
       // 编辑模式：仅支持重置下级用户密码，姓名/租户/上级不可改
       if (form.value.password) {
+        const pwdErr = passwordStrengthError(form.value.password)
+        if (pwdErr) { saveMsg.value = pwdErr; saving.value = false; return }
         const res = await api.put('/sys/user/edit', { password: form.value.password }, { params: { id: form.value.id } })
         if (!(res.data.success || res.data.code === 0)) {
           saveMsg.value = res.data.message || '保存失败'; saving.value = false; return
@@ -402,6 +407,8 @@ async function handleSave() {
       const username = form.value.username
       const tid = form.value.tenantId
       const pid = form.value.parentId
+      const pwdErr = passwordStrengthError(form.value.password)
+      if (pwdErr) { saveMsg.value = pwdErr; saving.value = false; return }
       const res = await api.post('/sys/user/add', form.value)
       if (!(res.data.success || res.data.code === 0)) {
         saveMsg.value = res.data.message || '保存失败'; saving.value = false; return

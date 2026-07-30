@@ -63,6 +63,7 @@
           <div class="form-item"><label>原密码</label><input v-model="oldPwd" type="password" class="form-input" placeholder="仅修改密码时必填" /></div>
           <div class="form-item"><label>新密码</label><input v-model="newPwd" type="password" class="form-input" placeholder="不修改请留空" /></div>
           <div class="form-item"><label>确认密码</label><input v-model="confirmPwd" type="password" class="form-input" placeholder="不修改请留空" /></div>
+          <p v-if="pwdHint" :class="pwdHint.ok ? 'msg-ok' : 'msg-err'" style="margin:-6px 0 4px;">{{ pwdHint.text }}</p>
           <div class="modal-actions">
             <button type="button" @click="showProfileModal = false" class="btn-secondary">关闭</button>
             <button type="submit" :disabled="pwdLoading" class="btn-primary">{{ pwdLoading ? '提交中...' : '确认修改' }}</button>
@@ -75,10 +76,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import { passwordStrengthError } from '../utils/password'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -102,6 +104,13 @@ function openProfileModal() {
   showProfileModal.value = true
 }
 
+// 新密码强度实时提示（仅在有输入时）
+const pwdHint = computed(() => {
+  if (!newPwd.value) return null
+  const err = passwordStrengthError(newPwd.value)
+  return err ? { text: err, ok: false } : { text: '密码强度符合要求', ok: true }
+})
+
 function handleLogout() {
   auth.logout()
   router.push('/login')
@@ -115,10 +124,12 @@ async function handleChangePwd() {
 
   const nameChanged = newName !== curName
   const wantPwd = !!(newPwd.value || confirmPwd.value)
-  // 修改密码时才需要原密码与两次一致校验
+  // 修改密码时才需要原密码与两次一致校验；新密码需满足强度要求
   if (wantPwd) {
     if (!oldPwd.value) { pwdMsg.value = '请输入原密码'; return }
     if (newPwd.value !== confirmPwd.value) { pwdMsg.value = '两次密码不一致'; return }
+    const strengthErr = passwordStrengthError(newPwd.value)
+    if (strengthErr) { pwdMsg.value = strengthErr; return }
   }
   if (!nameChanged && !wantPwd) { pwdMsg.value = '没有需要修改的内容'; return }
 

@@ -55,6 +55,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
+import { passwordStrengthError } from '../utils/password'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -91,6 +92,8 @@ async function handleForceChangePwd() {
   successMsg.value = ''
   if (!newPwd.value) { error.value = '请输入新密码'; return }
   if (newPwd.value !== confirmPwd.value) { error.value = '两次密码不一致'; return }
+  const pwdErr = passwordStrengthError(newPwd.value)
+  if (pwdErr) { error.value = pwdErr; return }
   loading.value = true
   try {
     const res = await api.put('/sys/user/changePassword', {
