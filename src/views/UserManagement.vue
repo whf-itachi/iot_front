@@ -58,22 +58,22 @@
         <form @submit.prevent="handleSave" class="admin-form">
           <div class="form-item"><label>账号名</label><input v-model="form.username" class="form-input" required :disabled="!!showEdit" /></div>
           <div class="form-item"><label>密码</label><input v-model="form.password" type="password" class="form-input" :required="!showEdit" :placeholder="showEdit ? '留空则不修改密码' : ''" /></div>
-          <div class="form-item"><label>姓名</label><input v-model="form.realname" class="form-input" /></div>
-          <div class="form-item"><label>所属租户</label>
+          <div class="form-item" v-if="!showEdit"><label>姓名</label><input v-model="form.realname" class="form-input" /></div>
+          <div class="form-item" v-if="!showEdit"><label>所属租户</label>
             <select v-if="auth.isSuperAdmin" v-model="form.tenantId" class="form-input">
               <option value="">-- 不分配 --</option>
               <option v-for="t in tenants" :key="t.id" :value="t.id">{{ t.name }}</option>
             </select>
             <span v-else style="padding:9px 0;color:var(--text-secondary);font-size:14px;">{{ tenantNames[form.tenantId] || '未分配' }}</span>
           </div>
-          <div class="form-item" v-if="form.tenantId && auth.isSuperAdmin">
+          <div class="form-item" v-if="!showEdit && form.tenantId && auth.isSuperAdmin">
             <label>上级用户</label>
             <select v-model="form.parentId" class="form-input">
               <option value="">-- 无上级 --</option>
               <option v-for="u in parentCandidates" :key="u.id" :value="u.id">{{ u.realname || u.username }} ({{ u.username }})</option>
             </select>
           </div>
-          <div class="form-item" v-if="form.tenantId && !auth.isSuperAdmin">
+          <div class="form-item" v-if="!showEdit && form.tenantId && !auth.isSuperAdmin">
             <label>上级用户</label>
             <span style="padding:9px 0;color:var(--text-muted);font-size:14px;">{{ auth.user?.realname || auth.user?.username }}（自己）</span>
           </div>
@@ -386,57 +386,50 @@ async function doDelete() {
 
 async function handleSave() {
   saving.value = true; saveMsg.value = ''; saveOk.value = false
-  const username = form.value.username
-  const tid = form.value.tenantId
-  const pid = form.value.parentId
-
   try {
-    // 1. 创建/更新用户
     if (showEdit.value) {
-      const editData = {}
-      if (form.value.realname !== undefined) editData.realname = form.value.realname
-      if (form.value.password) editData.password = form.value.password
-      if (Object.keys(editData).length) {
-        const res = await api.put('/sys/user/edit', editData, { params: { id: form.value.id } })
+      // 编辑模式：仅支持重置下级用户密码，姓名/租户/上级不可改
+      if (form.value.password) {
+        const res = await api.put('/sys/user/edit', { password: form.value.password }, { params: { id: form.value.id } })
         if (!(res.data.success || res.data.code === 0)) {
-          saveMsg.value = res.data.message || '保存失败'
-          saving.value = false; return
+          saveMsg.value = res.data.message || '保存失败'; saving.value = false; return
         }
       }
+      saveMsg.value = '保存成功'; saveOk.value = true
+      setTimeout(() => { closeModal(); fetchUsers() }, 500)
     } else {
       // 新增模式（仅管理员）
+      const username = form.value.username
+      const tid = form.value.tenantId
+      const pid = form.value.parentId
       const res = await api.post('/sys/user/add', form.value)
       if (!(res.data.success || res.data.code === 0)) {
-        saveMsg.value = res.data.message || '保存失败'
-        saving.value = false; return
+        saveMsg.value = res.data.message || '保存失败'; saving.value = false; return
       }
-    }
 
-    // 2. 分配租户
-    if (tid) {
-      const r2 = await api.post('/iot/admin/device/user/assignTenant', { username, tenantId: Number(tid) })
-      if (!r2.data.success) { saveMsg.value = '租户分配失败: ' + r2.data.message; saving.value = false; return }
-    }
+      // 2. 分配租户
+      if (tid) {
+        const r2 = await api.post('/iot/admin/device/user/assignTenant', { username, tenantId: Number(tid) })
+        if (!r2.data.success) { saveMsg.value = '租户分配失败: ' + r2.data.message; saving.value = false; return }
+      }
 
-    // 3. 确定用户ID（新增时需要从列表反查）
-    let targetId = showEdit.value ? form.value.id : ''
-    if (!targetId) {
+      // 3. 确定用户ID（新增时需要从列表反查）
+      let targetId = ''
       const uRes = await api.get('/sys/user/list?pageNo=1&pageSize=500')
       const found = (uRes.data.result?.records || []).find(u => u.username === username)
       targetId = found?.id || ''
-    }
-    if (!targetId) { saveMsg.value = '无法获取用户ID'; saving.value = false; return }
+      if (!targetId) { saveMsg.value = '无法获取用户ID'; saving.value = false; return }
 
-    // 4. 保存角色/上级
-    if (pid || tid) {
-      const roleType = pid ? 'employee' : 'admin'
-      const r4 = await api.post('/iot/admin/device/user/extension', { userId: targetId, parentId: pid || null, roleType })
-      if (!r4.data.success) { saveMsg.value = '角色保存失败: ' + r4.data.message; saving.value = false; return }
-    }
+      // 4. 保存角色/上级
+      if (pid || tid) {
+        const roleType = pid ? 'employee' : 'admin'
+        const r4 = await api.post('/iot/admin/device/user/extension', { userId: targetId, parentId: pid || null, roleType })
+        if (!r4.data.success) { saveMsg.value = '角色保存失败: ' + r4.data.message; saving.value = false; return }
+      }
 
-    saveMsg.value = '保存成功'
-    saveOk.value = true
-    setTimeout(() => { closeModal(); fetchUsers() }, 500)
+      saveMsg.value = '保存成功'; saveOk.value = true
+      setTimeout(() => { closeModal(); fetchUsers() }, 500)
+    }
   } catch (e) {
     saveMsg.value = e.response?.data?.message || e.message || '网络错误'
   }

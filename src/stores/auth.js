@@ -82,5 +82,20 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('role')
   }
 
-  return { user, token, role, roleLoaded, myDeviceIds, isLoggedIn, isSuperAdmin, isAdmin, canManageTenants, canManageUsers, canAddUser, loadRole, loadMyDeviceIds, login, logout }
+  // 用后端返回的最新会话信息覆盖本地状态（修改账号名后保持会话一致）
+  function updateSession({ token: newToken, refreshToken: newRefresh, userInfo } = {}) {
+    if (newToken) {
+      token.value = newToken
+      localStorage.setItem('token', newToken)
+    }
+    if (newRefresh) {
+      localStorage.setItem('refreshToken', newRefresh)
+    }
+    if (userInfo) {
+      user.value = { ...(user.value || {}), ...userInfo }
+      localStorage.setItem('user', JSON.stringify(user.value))
+    }
+  }
+
+  return { user, token, role, roleLoaded, myDeviceIds, isLoggedIn, isSuperAdmin, isAdmin, canManageTenants, canManageUsers, canAddUser, loadRole, loadMyDeviceIds, login, logout, updateSession }
 })

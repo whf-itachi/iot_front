@@ -35,7 +35,7 @@
           <span>📋</span> 操作日志
         </router-link>
       </nav>
-      <div class="user-info" @click="showProfileModal = true" title="点击查看个人信息">
+      <div class="user-info" @click="openProfileModal" title="点击查看个人信息">
         <span>👤 {{ auth.user?.username || '用户' }}</span>
         <button @click.stop="handleLogout">退出</button>
       </div>
@@ -49,16 +49,20 @@
       <div class="modal-card">
         <h3>个人信息</h3>
         <div class="profile-info">
-          <div class="info-row"><span class="info-label">账号名</span><span class="info-val">{{ auth.user?.username || '-' }}</span></div>
+          <div class="info-row">
+            <span class="info-label">账号名</span>
+            <input v-model="newUsername" type="text" class="form-input" placeholder="请输入账号名" required />
+          </div>
           <div class="info-row"><span class="info-label">姓名</span><span class="info-val">{{ auth.user?.realname || '-' }}</span></div>
         </div>
 
         <div class="profile-divider"></div>
         <h4>🔒 修改密码</h4>
+        <p class="hint">只改账号名时无需填写密码；只改密码时需填写原密码与新密码。</p>
         <form @submit.prevent="handleChangePwd" class="admin-form">
-          <div class="form-item"><label>原密码</label><input v-model="oldPwd" type="password" class="form-input" required /></div>
-          <div class="form-item"><label>新密码</label><input v-model="newPwd" type="password" class="form-input" required /></div>
-          <div class="form-item"><label>确认密码</label><input v-model="confirmPwd" type="password" class="form-input" required /></div>
+          <div class="form-item"><label>原密码</label><input v-model="oldPwd" type="password" class="form-input" placeholder="仅修改密码时必填" /></div>
+          <div class="form-item"><label>新密码</label><input v-model="newPwd" type="password" class="form-input" placeholder="不修改请留空" /></div>
+          <div class="form-item"><label>确认密码</label><input v-model="confirmPwd" type="password" class="form-input" placeholder="不修改请留空" /></div>
           <div class="modal-actions">
             <button type="button" @click="showProfileModal = false" class="btn-secondary">关闭</button>
             <button type="submit" :disabled="pwdLoading" class="btn-primary">{{ pwdLoading ? '提交中...' : '确认修改' }}</button>
@@ -80,12 +84,23 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const showProfileModal = ref(false)
+const newUsername = ref('')
 const oldPwd = ref('')
 const newPwd = ref('')
 const confirmPwd = ref('')
 const pwdLoading = ref(false)
 const pwdMsg = ref('')
 const pwdOk = ref(false)
+
+function openProfileModal() {
+  newUsername.value = auth.user?.username || ''
+  pwdMsg.value = ''
+  pwdOk.value = false
+  oldPwd.value = ''
+  newPwd.value = ''
+  confirmPwd.value = ''
+  showProfileModal.value = true
+}
 
 function handleLogout() {
   auth.logout()
@@ -94,23 +109,35 @@ function handleLogout() {
 
 async function handleChangePwd() {
   pwdMsg.value = ''
-  if (newPwd.value !== confirmPwd.value) { pwdMsg.value = '两次密码不一致'; return }
+  const curName = auth.user?.username || ''
+  const newName = (newUsername.value || '').trim()
+  if (!newName) { pwdMsg.value = '请输入账号名'; return }
+
+  const nameChanged = newName !== curName
+  const wantPwd = !!(newPwd.value || confirmPwd.value)
+  // 修改密码时才需要原密码与两次一致校验
+  if (wantPwd) {
+    if (!oldPwd.value) { pwdMsg.value = '请输入原密码'; return }
+    if (newPwd.value !== confirmPwd.value) { pwdMsg.value = '两次密码不一致'; return }
+  }
+  if (!nameChanged && !wantPwd) { pwdMsg.value = '没有需要修改的内容'; return }
+
   pwdLoading.value = true
   try {
-    const res = await api.put('/sys/user/changePassword', {
-      username: auth.user?.username,
-      password: oldPwd.value,
-      newpassword: newPwd.value
-    })
+    const payload = { username: curName, newusername: newName }
+    if (wantPwd) { payload.password = oldPwd.value; payload.newpassword = newPwd.value }
+    const res = await api.put('/sys/user/changePassword', payload)
     if (res.data.success) {
-      pwdMsg.value = '密码修改成功'
+      // 账号名或密码已变更，后端会返回新的会话凭证，本地直接应用以保持一致
+      if (res.data.result) auth.updateSession(res.data.result)
+      pwdMsg.value = '修改成功'
       pwdOk.value = true
-      setTimeout(() => { showProfileModal.value = false; pwdMsg.value = ''; oldPwd.value = ''; newPwd.value = ''; confirmPwd.value = '' }, 1000)
+      setTimeout(() => { showProfileModal.value = false; pwdMsg.value = '' }, 1000)
     } else {
       pwdMsg.value = res.data.message || '修改失败'
     }
   } catch (e) {
-    pwdMsg.value = '修改失败，请检查原密码'
+    pwdMsg.value = '修改失败，请稍后重试'
   }
   pwdLoading.value = false
 }
@@ -149,5 +176,11 @@ async function handleChangePwd() {
 .profile-divider {
   border-top: 1px solid var(--border-light);
   margin: 16px 0;
+}
+.hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 </style>
