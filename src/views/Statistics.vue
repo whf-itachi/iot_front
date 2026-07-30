@@ -5,25 +5,40 @@
       <span class="header-summary" v-if="totalCount">共 {{ totalCount }} 片叶片</span>
     </div>
 
-    <!-- 导航栏 -->
-    <div class="nav-bar" v-if="totalCount">
-      <div class="nav-left">
-        <button class="nav-btn" @click="slideLeft" :disabled="!canGoLeft">
-          ◀ 之前
-        </button>
+    <!-- 导航栏 + 设备过滤（同一行） -->
+    <div class="nav-bar">
+      <div class="filter-item">
+        <label class="filter-label">设备名称</label>
+        <select
+          v-model="filters.deviceName"
+          class="filter-select"
+          :disabled="loading"
+          @change="applyFilter"
+        >
+          <option value="">全部设备</option>
+          <option v-for="name in deviceOptions" :key="name" :value="name">{{ name }}</option>
+        </select>
       </div>
-      <span class="nav-info">
-        第 {{ windowStart + 1 }} – {{ windowEnd }} 片（共 {{ totalCount }} 片）
-      </span>
-      <div class="nav-right">
-        <button class="nav-btn" @click="slideRight" :disabled="!canGoRight">
-          之后 ▶
-        </button>
-      </div>
-      <div class="page-size-ctl">
-        <button class="size-btn" @click="changeSize(-10)" :disabled="pageSize <= 10">−10</button>
-        <span class="size-val">{{ pageSize }} 片/页</span>
-        <button class="size-btn" @click="changeSize(10)">+10</button>
+
+      <div class="nav-pager" v-if="totalCount">
+        <div class="nav-left">
+          <button class="nav-btn" @click="slideLeft" :disabled="!canGoLeft">
+            ◀ 之前
+          </button>
+        </div>
+        <span class="nav-info">
+          第 {{ windowStart + 1 }} – {{ windowEnd }} 片（共 {{ totalCount }} 片）
+        </span>
+        <div class="nav-right">
+          <button class="nav-btn" @click="slideRight" :disabled="!canGoRight">
+            之后 ▶
+          </button>
+        </div>
+        <div class="page-size-ctl">
+          <button class="size-btn" @click="changeSize(-10)" :disabled="pageSize <= 10">−10</button>
+          <span class="size-val">{{ pageSize }} 片/页</span>
+          <button class="size-btn" @click="changeSize(10)">+10</button>
+        </div>
       </div>
     </div>
 
@@ -52,6 +67,10 @@ const stats = ref([])
 const loading = ref(true)
 const pageSize = ref(20)
 const windowStart = ref(0)
+
+// 过滤条件与设备名下拉选项
+const filters = ref({ deviceName: '' })
+const deviceOptions = ref([])
 
 const compareChartRef = ref(null)
 const depthTimeRef = ref(null)
@@ -93,13 +112,36 @@ function goLatest() {
 }
 
 onMounted(async () => {
+  await fetchDeviceNames()
+  await fetchStats()
+})
+
+// 拉取当前用户可访问的去重设备名称，填充下拉框
+async function fetchDeviceNames() {
   try {
-    const res = await api.get('/iot/statistics/flatness')
+    const res = await api.get('/iot/statistics/device-names')
+    if (res.data.success) deviceOptions.value = res.data.device_names || []
+  } catch (e) { /* ignore */ }
+}
+
+// 按当前过滤条件拉取统计结果
+async function fetchStats() {
+  loading.value = true
+  try {
+    const params = {}
+    if (filters.value.deviceName) params.device_name = filters.value.deviceName
+    const res = await api.get('/iot/statistics/flatness', { params })
     if (res.data.success) stats.value = res.data.results || []
   } catch (e) { /* ignore */ }
   loading.value = false
   goLatest()
-})
+}
+
+// 应用过滤条件（设备下拉变更时触发）
+function applyFilter() {
+  windowStart.value = 0
+  fetchStats()
+}
 
 watch(windowData, async () => {
   await nextTick()
@@ -272,11 +314,25 @@ window.addEventListener('resize', () => {
 .page-header h2 { font-size: 20px; color: var(--text-primary); font-weight: 700; }
 .header-summary { color: var(--text-muted); font-size: 14px; }
 
+.filter-item { display: flex; flex-direction: column; gap: 6px; }
+.filter-label { color: var(--text-muted); font-size: 12px; }
+.filter-select {
+  height: 34px; min-width: 180px; padding: 0 10px;
+  background: var(--bg-hover); border: 1px solid var(--border-default);
+  border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.filter-select:focus { border-color: var(--border-focus); }
+.filter-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .nav-bar {
-  display: flex; align-items: center; justify-content: center; gap: 16px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
   margin-bottom: 20px; padding: 10px 20px;
   background: var(--bg-card); border: 1px solid var(--border-default);
   border-radius: 10px; box-shadow: var(--shadow-card);
+}
+.nav-pager {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
 }
 .nav-btn {
   padding: 6px 20px; background: var(--bg-hover); border: 1px solid var(--border-default);
