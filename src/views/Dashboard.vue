@@ -56,6 +56,7 @@ onMounted(async () => {
   if (!auth.roleLoaded) {
     await new Promise(resolve => {
       const timer = setInterval(() => { if (auth.roleLoaded) { clearInterval(timer); resolve() } }, 100)
+      setTimeout(() => { clearInterval(timer); resolve() }, 3000)
     })
   }
   try {

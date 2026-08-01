@@ -61,6 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
           }
         } catch (e) { role.value = 'employee' }
       }
+      roleLoaded.value = true
       return true
     }
     // 密码过期：code === 4001

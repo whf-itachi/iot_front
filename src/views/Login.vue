@@ -1,51 +1,67 @@
 <template>
   <div class="login-page">
-    <div class="login-card">
-      <h1>IoT 叶片加工监控平台</h1>
-      <p class="subtitle">Blade Manufacturing Monitor</p>
+    <!-- 左侧图片区 -->
+    <div class="login-banner">
+      <div class="banner-overlay">
+        <h2 class="banner-title">智能制造 · 实时监控</h2>
+        <p class="banner-sub">IoT 监控平台</p>
+      </div>
+    </div>
 
-      <!-- 正常登录 -->
-      <form v-if="!needChangePwd" @submit.prevent="handleLogin">
-        <div class="form-item">
-          <label>账号</label>
-          <input v-model="username" type="text" placeholder="请输入账号" />
-        </div>
-        <div class="form-item">
-          <label>密码</label>
-          <input v-model="password" type="password" placeholder="请输入密码" />
-        </div>
-        <button type="submit" :disabled="loading">
-          {{ loading ? '登录中...' : '登 录' }}
-        </button>
-        <p v-if="error" class="error">{{ error }}</p>
-      </form>
+    <!-- 右侧登录面板 -->
+    <div class="login-side">
+      <div class="login-body">
+        <div class="login-card">
+          <h1>用户登录</h1>
 
-      <!-- 密码过期，强制修改 -->
-      <form v-else @submit.prevent="handleForceChangePwd">
-        <p class="expire-notice">⚠️ 您的密码已过期，请设置新密码后重新登录</p>
-        <div class="form-item">
-          <label>账号</label>
-          <input v-model="username" type="text" disabled />
+          <!-- 正常登录 -->
+          <form v-if="!needChangePwd" @submit.prevent="handleLogin">
+            <div class="form-item">
+              <label>账号</label>
+              <input v-model="username" type="text" placeholder="请输入账号" />
+            </div>
+            <div class="form-item">
+              <label>密码</label>
+              <input v-model="password" type="password" placeholder="请输入密码" />
+            </div>
+            <button type="submit" :disabled="loading">
+              {{ loading ? '登录中...' : '登 录' }}
+            </button>
+            <p v-if="error" class="error">{{ error }}</p>
+          </form>
+
+          <!-- 密码过期，强制修改 -->
+          <form v-else @submit.prevent="handleForceChangePwd">
+            <p class="expire-notice">⚠️ 您的密码已过期，请设置新密码后重新登录</p>
+            <div class="form-item">
+              <label>账号</label>
+              <input v-model="username" type="text" disabled />
+            </div>
+            <div class="form-item">
+              <label>原密码</label>
+              <input v-model="password" type="password" placeholder="请输入原密码" />
+            </div>
+            <div class="form-item">
+              <label>新密码</label>
+              <input v-model="newPwd" type="password" placeholder="请设置新密码" />
+            </div>
+            <div class="form-item">
+              <label>确认密码</label>
+              <input v-model="confirmPwd" type="password" placeholder="请再次输入新密码" />
+            </div>
+            <button type="submit" :disabled="loading">
+              {{ loading ? '提交中...' : '修改密码并登录' }}
+            </button>
+            <button type="button" class="btn-back" @click="needChangePwd = false; error = ''">返回登录</button>
+            <p v-if="error" class="error">{{ error }}</p>
+            <p v-if="successMsg" class="success">{{ successMsg }}</p>
+          </form>
         </div>
-        <div class="form-item">
-          <label>原密码</label>
-          <input v-model="password" type="password" placeholder="请输入原密码" />
-        </div>
-        <div class="form-item">
-          <label>新密码</label>
-          <input v-model="newPwd" type="password" placeholder="请设置新密码" />
-        </div>
-        <div class="form-item">
-          <label>确认密码</label>
-          <input v-model="confirmPwd" type="password" placeholder="请再次输入新密码" />
-        </div>
-        <button type="submit" :disabled="loading">
-          {{ loading ? '提交中...' : '修改密码并登录' }}
-        </button>
-        <button type="button" class="btn-back" @click="needChangePwd = false; error = ''">返回登录</button>
-        <p v-if="error" class="error">{{ error }}</p>
-        <p v-if="successMsg" class="success">{{ successMsg }}</p>
-      </form>
+      </div>
+
+      <footer class="login-footer">
+        <p>Copyright © 2026 IoT 监控平台 版权所有</p>
+      </footer>
     </div>
   </div>
 </template>
