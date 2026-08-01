@@ -157,7 +157,7 @@ async function renderCharts() {
   const befores = data.map(s => s.before_flatness)
   const afters = data.map(s => s.after_flatness)
   const depths = data.map(s => s.mill_depth)
-  const durations = data.map(s => s.total_duration != null ? (s.total_duration / 60).toFixed(2) : null)
+  const durations = data.map(s => s.total_duration != null ? s.total_duration.toFixed(1) : null)
 
   // ===== 加工前后对比 =====
   if (compareChartRef.value) {
