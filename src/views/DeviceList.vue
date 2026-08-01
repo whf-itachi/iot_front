@@ -48,7 +48,9 @@
         </thead>
         <tbody>
           <tr v-for="d in devices" :key="d.id">
-            <td class="device-name">{{ d.name }}</td>
+            <td class="device-name">
+              <span class="device-link" @click="goDetail(d)" :title="`查看 ${d.name} 的加工详情`">{{ d.name }}</span>
+            </td>
             <td>{{ d.productName }}</td>
             <td>
               <span :class="['status-tag', statusClass(d.stateValue)]">
@@ -74,11 +76,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import api from '../api'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 
 const devices = ref([])
@@ -177,6 +180,10 @@ function goPage(p) {
   fetchDevices()
 }
 
+function goDetail(d) {
+  router.push({ path: `/devices/${d.id}`, query: d.name ? { name: d.name } : {} })
+}
+
 onMounted(async () => {
   if (route.query.status) currentFilter.value = route.query.status
   // 等角色加载完
@@ -220,6 +227,11 @@ onMounted(async () => {
 .device-table td { padding: 10px 16px; font-size: 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); }
 .device-table tr:hover td { background: var(--bg-hover); }
 .device-name { font-weight: 500; }
+.device-link {
+  color: #fff; text-decoration: underline; cursor: pointer;
+  padding: 2px 4px; border-radius: 4px; transition: background 0.15s;
+}
+.device-link:hover { background: var(--color-success-bg); }
 
 .status-tag { padding: 2px 10px; border-radius: 10px; font-size: 12px; }
 .status-tag.online { background: var(--color-success-bg); color: var(--color-success-text); }
