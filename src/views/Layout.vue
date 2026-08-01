@@ -21,6 +21,9 @@
         <router-link to="/flatness" class="menu-item">
           <span>📐</span> 平面度测量数据
         </router-link>
+        <router-link to="/alarms" class="menu-item">
+          <span>🔔</span> 告警信息
+        </router-link>
         <template v-if="auth.isAdmin">
           <div class="menu-divider"></div>
           <div class="menu-label">系统管理</div>

@@ -50,6 +50,12 @@ const routes = [
         meta: { title: '设备加工详情' }
       },
       {
+        path: 'alarms',
+        name: 'Alarms',
+        component: () => import('../views/Alarms.vue'),
+        meta: { title: '告警信息' }
+      },
+      {
         path: 'admin/users',
         name: 'UserManagement',
         component: () => import('../views/UserManagement.vue'),
