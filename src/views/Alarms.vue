@@ -3,7 +3,6 @@
     <div class="page-header">
       <div class="title-block">
         <h2>告警信息</h2>
-        <div class="subtitle">名下所有设备的告警信息（联合设备表查询）</div>
       </div>
     </div>
 
@@ -196,7 +195,6 @@ onMounted(() => {
 .page-header { margin-bottom: 20px; }
 .title-block { display: flex; align-items: center; gap: 16px; }
 .page-header h2 { font-size: 20px; color: var(--text-primary); }
-.subtitle { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
 
 .filter-bar { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
 .filter-group { display: flex; gap: 6px; align-items: center; }
