@@ -6,17 +6,16 @@
         <div class="kpi-card">
           <div class="kpi-label">设备总数</div>
           <div class="kpi-value">{{ loading ? '-' : stats.totalDevices }}</div>
-          <div class="kpi-sub">全部接入设备</div>
+          <div class="kpi-sub device-sub">
+            <span class="dot online"></span>在线 {{ loading ? '-' : stats.onlineDevices }}
+            <span class="dot offline"></span>离线 {{ loading ? '-' : stats.offlineDevices }}
+            <span class="rate-sep">·</span>在线率 {{ loading ? '-' : onlineRate }}%
+          </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">在线 / 离线设备</div>
-          <div v-if="loading" class="kpi-value">-</div>
-          <div v-else class="kpi-value split">
-            <span class="online-num">{{ stats.onlineDevices }}</span>
-            <span class="split-sep">/</span>
-            <span class="offline-num">{{ stats.offlineDevices }}</span>
-          </div>
-          <div class="kpi-sub">在线率 {{ loading ? '-' : onlineRate }}%</div>
+          <div class="kpi-label">叶片合格率</div>
+          <div class="kpi-value">{{ loading ? '-' : qualification.rate }}<span class="kpi-unit">%</span></div>
+          <div class="kpi-sub">合格 {{ loading ? '-' : qualification.pass }} / {{ loading ? '-' : qualification.total }} 片 (≤0.5mm)</div>
         </div>
         <div class="kpi-card">
           <div class="kpi-label">累计加工叶片</div>
@@ -96,6 +95,15 @@ const avgDurationText = computed(() => {
   const minutes = bladeStats.value.avgDuration
   if (!minutes) return '0.0'
   return (minutes / 60).toFixed(1)
+})
+
+// 合格率：基于平面度统计，加工后平面度 after_flatness <= 0.5 视为合格
+const qualification = computed(() => {
+  const rows = rawRows.value
+  const judged = rows.filter(r => r.after_flatness != null)
+  const pass = judged.filter(r => r.after_flatness <= 0.5).length
+  const rate = judged.length ? ((pass / judged.length) * 100).toFixed(1) : '0.0'
+  return { rate, pass, total: judged.length }
 })
 
 const trendTitle = computed(() => ({
@@ -501,14 +509,22 @@ onBeforeUnmount(() => {
   color: var(--text-muted);
 }
 
-.kpi-value.split {
+.device-sub {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
 }
-.online-num { color: var(--color-success); }
-.offline-num { color: var(--color-danger); }
-.split-sep { color: var(--text-muted); font-size: 24px; }
+.device-sub .dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 2px;
+}
+.device-sub .dot.online { background: var(--color-success); }
+.device-sub .dot.offline { background: var(--color-danger); }
+.device-sub .rate-sep { color: var(--text-muted); }
 
 .kpi-sub {
   margin-top: 4px;
