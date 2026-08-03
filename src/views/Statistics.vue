@@ -8,7 +8,19 @@
     <!-- 导航栏 + 设备过滤（同一行） -->
     <div class="nav-bar">
       <div class="filter-item">
-        <label class="filter-label">设备名称</label>
+        <label class="filter-label">产品</label>
+        <select
+          v-model="filters.product"
+          class="filter-select product-select"
+          :disabled="loading"
+          @change="onProductChange"
+        >
+          <option v-for="p in productOptions" :key="p" :value="p">{{ p }}</option>
+        </select>
+      </div>
+
+      <div class="filter-item">
+        <label class="filter-label">设备</label>
         <select
           v-model="filters.deviceName"
           class="filter-select"
@@ -20,6 +32,21 @@
         </select>
       </div>
 
+      <div class="filter-item">
+        <label class="filter-label">叶片名称</label>
+        <div class="filter-blade">
+          <input
+            type="text"
+            v-model="filters.bladeName"
+            class="filter-input"
+            placeholder="模糊查询，留空查全部"
+            :disabled="loading"
+            @keyup.enter="applyFilter"
+          />
+          <button class="search-btn" @click="applyFilter" :disabled="loading">查询</button>
+        </div>
+      </div>
+
       <div class="nav-pager" v-if="totalCount">
         <div class="nav-left">
           <button class="nav-btn" @click="slideLeft" :disabled="!canGoLeft">
@@ -27,7 +54,7 @@
           </button>
         </div>
         <span class="nav-info">
-          第 {{ windowStart + 1 }} – {{ windowEnd }} 片（共 {{ totalCount }} 片）
+          第 {{ windowStart + 1 }}–{{ windowEnd }} / 共 {{ totalCount }} 片
         </span>
         <div class="nav-right">
           <button class="nav-btn" @click="slideRight" :disabled="!canGoRight">
@@ -35,9 +62,17 @@
           </button>
         </div>
         <div class="page-size-ctl">
-          <button class="size-btn" @click="changeSize(-10)" :disabled="pageSize <= 10">−10</button>
-          <span class="size-val">{{ pageSize }} 片/页</span>
-          <button class="size-btn" @click="changeSize(10)">+10</button>
+          <label class="filter-label">每页</label>
+          <select
+            v-model.number="pageSize"
+            class="page-size-select"
+            :disabled="loading"
+            @change="onPageSizeSelect"
+          >
+            <option :value="10">10 片</option>
+            <option :value="20">20 片</option>
+            <option :value="50">50 片</option>
+          </select>
         </div>
       </div>
     </div>
@@ -69,7 +104,8 @@ const pageSize = ref(20)
 const windowStart = ref(0)
 
 // 过滤条件与设备名下拉选项
-const filters = ref({ deviceName: '' })
+const productOptions = ['IMM', 'DMM', 'HRS', 'IMF', 'PGC']
+const filters = ref({ product: 'IMM', deviceName: '', bladeName: '' })
 const deviceOptions = ref([])
 
 const compareChartRef = ref(null)
@@ -99,9 +135,8 @@ function slideRight() {
   const s = Math.min(step.value, totalCount.value - windowEnd.value)
   if (s > 0) windowStart.value += s
 }
-function changeSize(delta) {
+function onPageSizeSelect() {
   const curEnd = windowEnd.value  // 保持窗口右边界不动
-  pageSize.value = Math.max(10, pageSize.value + delta)
   windowStart.value = Math.max(0, curEnd - pageSize.value)
 }
 
@@ -116,12 +151,22 @@ onMounted(async () => {
   await fetchStats()
 })
 
-// 拉取当前用户可访问的去重设备名称，填充下拉框
+// 拉取当前用户可访问的去重设备名称，填充下拉框（按产品筛选）
 async function fetchDeviceNames() {
   try {
-    const res = await api.get('/iot/statistics/device-names')
+    const params = {}
+    if (filters.value.product) params.product = filters.value.product
+    const res = await api.get('/iot/statistics/device-names', { params })
     if (res.data.success) deviceOptions.value = res.data.device_names || []
   } catch (e) { /* ignore */ }
+}
+
+// 切换产品：重置设备为「全部设备」，重新拉取设备列表并刷新统计
+function onProductChange() {
+  filters.value.deviceName = ''
+  windowStart.value = 0
+  fetchDeviceNames()
+  fetchStats()
 }
 
 // 按当前过滤条件拉取统计结果
@@ -129,7 +174,10 @@ async function fetchStats() {
   loading.value = true
   try {
     const params = {}
+    if (filters.value.product) params.product = filters.value.product
     if (filters.value.deviceName) params.device_name = filters.value.deviceName
+    const bladeName = filters.value.bladeName?.trim()
+    if (bladeName) params.blade_name = bladeName
     const res = await api.get('/iot/statistics/flatness', { params })
     if (res.data.success) stats.value = res.data.results || []
   } catch (e) { /* ignore */ }
@@ -314,46 +362,67 @@ window.addEventListener('resize', () => {
 .page-header h2 { font-size: 20px; color: var(--text-primary); font-weight: 700; }
 .header-summary { color: var(--text-muted); font-size: 14px; }
 
-.filter-item { display: flex; flex-direction: column; gap: 6px; }
-.filter-label { color: var(--text-muted); font-size: 12px; }
+.filter-item { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-shrink: 0; }
+.filter-label { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 .filter-select {
-  height: 34px; min-width: 180px; padding: 0 10px;
+  height: 34px; min-width: 130px; padding: 0 10px;
   background: var(--bg-hover); border: 1px solid var(--border-default);
   border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;
   transition: border-color 0.2s;
 }
+.product-select { min-width: 84px; width: 84px; }
 .filter-select:focus { border-color: var(--border-focus); }
 .filter-select:disabled { opacity: 0.6; cursor: not-allowed; }
 
+.filter-blade { display: flex; gap: 6px; align-items: center; }
+.filter-input {
+  height: 34px; width: 200px; padding: 0 10px;
+  background: var(--bg-hover); border: 1px solid var(--border-default);
+  border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.filter-input::placeholder { color: var(--text-placeholder); }
+.filter-input:focus { border-color: var(--border-focus); }
+.filter-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.search-btn {
+  height: 34px; padding: 0 14px; background: var(--gradient-primary); border: none;
+  color: #0b1221; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
+  transition: all 0.2s; white-space: nowrap;
+}
+.search-btn:hover:not(:disabled) { box-shadow: var(--shadow-glow); }
+.search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .nav-bar {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
-  margin-bottom: 20px; padding: 10px 20px;
+  display: flex; align-items: center; justify-content: flex-start; flex-wrap: nowrap; gap: 10px;
+  margin-bottom: 20px; padding: 8px 14px;
   background: var(--bg-card); border: 1px solid var(--border-default);
   border-radius: 10px; box-shadow: var(--shadow-card);
+  overflow-x: auto;
 }
 .nav-pager {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; flex-shrink: 0;
+  margin-left: auto;
 }
 .nav-btn {
-  padding: 6px 20px; background: var(--bg-hover); border: 1px solid var(--border-default);
+  padding: 6px 12px; background: var(--bg-hover); border: 1px solid var(--border-default);
   color: var(--text-secondary); border-radius: 6px; font-size: 13px; cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s; white-space: nowrap;
 }
 .nav-btn:hover:not(:disabled) { border-color: var(--border-focus); color: var(--color-primary); }
 .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-.nav-info { color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+.nav-info { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
 .page-size-ctl {
-  display: flex; align-items: center; gap: 6px; margin-left: 8px;
-  padding-left: 16px; border-left: 1px solid var(--border-default);
+  display: flex; align-items: center; gap: 6px; margin-left: 6px;
+  padding-left: 10px; border-left: 1px solid var(--border-default); flex-shrink: 0;
 }
-.size-btn {
-  padding: 4px 10px; background: transparent; border: 1px solid var(--border-default);
-  color: var(--text-muted); border-radius: 4px; font-size: 12px; cursor: pointer;
-  transition: all 0.2s;
+.page-size-select {
+  height: 34px; min-width: 84px; padding: 0 10px;
+  background: var(--bg-hover); border: 1px solid var(--border-default);
+  border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;
+  transition: border-color 0.2s;
 }
-.size-btn:hover:not(:disabled) { border-color: var(--border-focus); color: var(--color-primary); }
-.size-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.size-val { color: var(--text-secondary); font-size: 12px; min-width: 55px; text-align: center; }
+.page-size-select:focus { border-color: var(--border-focus); }
+.page-size-select:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .chart-card {
   background: var(--bg-card); border: 1px solid var(--border-default);
