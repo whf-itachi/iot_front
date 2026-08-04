@@ -152,7 +152,11 @@
               <label>结束日期</label>
               <input type="date" v-model="batchEnd" class="dialog-input" />
             </div>
-            <div class="dialog-hint">默认筛选最近一周的测量数据，您可手动调整日期范围</div>
+            <div class="dialog-field">
+              <label>叶片名称</label>
+              <input type="text" v-model="batchBladeName" class="dialog-input" placeholder="模糊查询，留空下载全部" />
+            </div>
+            <div class="dialog-hint">默认筛选最近一周的测量数据，可按叶片名称模糊过滤，您可手动调整日期范围</div>
           </div>
           <div class="dialog-footer">
             <button class="dialog-btn cancel" @click="showBatchDialog = false">取消</button>
@@ -204,6 +208,7 @@ const showBatchDialog = ref(false)
 const batchDownloading = ref(false)
 const batchStart = ref('')
 const batchEnd = ref('')
+const batchBladeName = ref('')
 
 function initBatchDates() {
   const now = new Date()
@@ -220,6 +225,7 @@ async function doBatchDownload() {
       deviceNames: [selectedDevice.value.name],
       startTime: batchStart.value || undefined,
       endTime: batchEnd.value || undefined,
+      bladeName: batchBladeName.value.trim() || undefined,
     }, { responseType: 'blob' })
 
     // Check if response is actually a JSON error (not a zip file)
