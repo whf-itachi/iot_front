@@ -44,7 +44,7 @@
         <tbody>
           <tr v-for="(a, i) in alarms" :key="i">
             <td>{{ a.device_name }}</td>
-            <td>{{ a.alarm_content }}</td>
+            <td class="alarm-content-cell" :title="a.alarm_content">{{ a.alarm_content }}</td>
             <td>{{ fmtTime(a.alarm_time) }}</td>
           </tr>
           <tr v-if="!loading && alarms.length === 0">
@@ -225,6 +225,7 @@ onMounted(() => {
 .detail-table { width: 100%; border-collapse: collapse; }
 .detail-table th { text-align: left; padding: 12px 16px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid var(--border-default); background: var(--bg-table-header); white-space: nowrap; }
 .detail-table td { padding: 10px 16px; font-size: 14px; color: var(--text-primary); border-bottom: 1px solid var(--border-light); white-space: nowrap; }
+.detail-table td.alarm-content-cell { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-table tr:hover td { background: var(--bg-hover); }
 
 .loading-spinner { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
