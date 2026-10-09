@@ -26,6 +26,12 @@ const routes = [
         meta: { title: '统计信息' }
       },
       {
+        path: 'reports',
+        name: 'Reports',
+        component: () => import('../views/Reports.vue'),
+        meta: { title: '报表中心' }
+      },
+      {
         path: 'process-logs',
         name: 'ProcessLogs',
         component: () => import('../views/BladeProcessLog.vue'),

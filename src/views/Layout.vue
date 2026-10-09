@@ -15,6 +15,9 @@
         <router-link to="/statistics" class="menu-item">
           <span>📈</span> 统计信息
         </router-link>
+        <router-link to="/reports" class="menu-item">
+          <span>📊</span> 报表中心
+        </router-link>
         <router-link to="/process-logs" class="menu-item">
           <span>⚙️</span> 叶片加工日志
         </router-link>
