@@ -47,17 +47,17 @@
               <span class="blade-name">{{ b.blade_id }}</span>
               <span class="blade-time">{{ fmtTs(b.measure_time) }}</span>
               <span class="blade-badge-wrap">
-                <span v-if="b.before" class="badge ok">前</span>
-                <span v-if="b.after" class="badge ok">后</span>
-                <span v-if="!b.before && !b.after" class="badge none">无</span>
+                <span v-if="b.before_id" class="badge ok">前</span>
+                <span v-if="b.after_id" class="badge ok">后</span>
+                <span v-if="!b.before_id && !b.after_id" class="badge none">无</span>
               </span>
             </li>
           </ul>
           <Pagination
-            :total="blades.length"
+            :total="total"
             :model-value="currentPage"
             :page-size="pageSize"
-            @update:model-value="currentPage = $event"
+            @update:model-value="onPageChange"
             @update:page-size="onPageSizeChange"
           />
         </template>
@@ -126,10 +126,11 @@
       </template>
 
       <!-- 无数据后备 -->
-      <div v-else-if="viewingBlade" class="empty-state">
+      <div v-else-if="viewingBlade && !loadingDetail" class="empty-state">
         <p>该叶片暂无测量数据</p>
         <button class="back-btn" style="margin-top:12px" @click="viewingBlade = false">← 返回叶片列表</button>
       </div>
+      <div v-else class="empty-state"><p>加载中...</p></div>
     </main>
 
     <!-- 批量下载弹窗 -->
@@ -139,7 +140,7 @@
           <div class="dialog-title">批量下载 — 平面度测量数据</div>
           <div class="dialog-body">
             <div class="dialog-desc">
-              设备：<strong>{{ selectedDevice?.name }}</strong>，当前共 <strong>{{ blades.length }}</strong> 条叶片记录
+              设备：<strong>{{ selectedDevice?.name }}</strong>，共 <strong>{{ total }}</strong> 条叶片记录（当前页 {{ blades.length }} 条）
             </div>
             <div class="dialog-note">
               每个叶片单独一个 Excel 文件，加工前/后数据在同一文件的不同工作表中。所有文件打包为 ZIP 下载。
@@ -191,10 +192,9 @@ const loadingBlades = ref(false)
 // ===== Pagination =====
 const pageSize = ref(20)
 const currentPage = ref(1)
-const pagedBlades = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return blades.value.slice(start, start + pageSize.value)
-})
+const total = ref(0)
+// 后端已按页返回，直接展示当前页即可
+const pagedBlades = computed(() => blades.value)
 
 const stage = ref('before')
 const chartRef = ref(null)
@@ -202,6 +202,7 @@ let chartInstance = null
 let chartInitPromise = null  // 防止并发初始化
 
 const currentData = ref(null)
+const loadingDetail = ref(false)
 
 // ===== Batch Download =====
 const showBatchDialog = ref(false)
@@ -284,30 +285,62 @@ onMounted(async () => {
   loadingDevices.value = false
 })
 
+async function fetchBlades() {
+  if (!selectedDevice.value) return
+  loadingBlades.value = true
+  try {
+    const res = await api.get('/iot/flatness/blades', {
+      params: { deviceName: selectedDevice.value.name, page: currentPage.value, pageSize: pageSize.value }
+    })
+    blades.value = res.data.success ? (res.data.results || []) : []
+    total.value = res.data.success ? (res.data.total || 0) : 0
+  } catch (e) {
+    blades.value = []
+    total.value = 0
+  }
+  loadingBlades.value = false
+}
+
 async function selectDevice(d) {
   selectedDevice.value = d
   selectedBlade.value = null
   viewingBlade.value = false
   currentData.value = null
   currentPage.value = 1
-  loadingBlades.value = true
-  try {
-    const res = await api.get('/iot/flatness/blades', { params: { deviceName: d.name } })
-    blades.value = res.data.success ? (res.data.results || []) : []
-  } catch (e) { blades.value = [] }
-  loadingBlades.value = false
+  await fetchBlades()
+}
+
+function onPageChange(p) {
+  currentPage.value = p
+  fetchBlades()
 }
 
 function onPageSizeChange(size) {
   pageSize.value = size
   currentPage.value = 1
+  fetchBlades()
 }
 
-function selectBlade(b) {
+async function selectBlade(b) {
   selectedBlade.value = b
-  stage.value = b.before ? 'before' : 'after'
-  updateCurrentData()
+  currentData.value = null
+  loadingDetail.value = true
   viewingBlade.value = true
+  try {
+    const [beforeRes, afterRes] = await Promise.all([
+      b.before_id ? api.get(`/iot/flatness/detail/${b.before_id}`) : Promise.resolve(null),
+      b.after_id ? api.get(`/iot/flatness/detail/${b.after_id}`) : Promise.resolve(null),
+    ])
+    const before = beforeRes?.data?.success ? beforeRes.data.data : null
+    const after = afterRes?.data?.success ? afterRes.data.data : null
+    selectedBlade.value = { ...b, before, after }
+    stage.value = before ? 'before' : (after ? 'after' : 'before')
+    updateCurrentData()
+  } catch (e) {
+    alert('加载详情失败: ' + (e?.message || '未知错误'))
+  } finally {
+    loadingDetail.value = false
+  }
 }
 
 function updateCurrentData() {
@@ -494,6 +527,7 @@ async function handleExportExcel() {
       params: {
         bladeId: selectedBlade.value?.blade_id,
         stage: stage.value,
+        deviceName: selectedDevice.value?.name,
       },
       responseType: 'blob',
     })

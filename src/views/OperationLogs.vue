@@ -141,15 +141,27 @@ function typeClass(type) {
   return ''
 }
 
+function weekAgoStr() {
+  const s = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const pad = n => String(n).padStart(2, '0')
+  return `${s.getFullYear()}-${pad(s.getMonth() + 1)}-${pad(s.getDate())}`
+}
+function todayStr() {
+  const e = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  return `${e.getFullYear()}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}`
+}
+
 async function fetchLogs() {
   loading.value = true
   error.value = ''
   try {
-    const params = { pageNo: pageNo.value, pageSize: pageSize.value }
+    // 默认时间范围：最近一周（开始/结束为空时由前端补全，避免拉取全量历史）
+    const startTime = filterStartTime.value || weekAgoStr()
+    const endTime = filterEndTime.value || todayStr()
+    const params = { pageNo: pageNo.value, pageSize: pageSize.value, startTime, endTime }
     if (filterAccount.value.trim()) params.account = filterAccount.value.trim()
     if (filterType.value.trim()) params.operationType = filterType.value.trim()
-    if (filterStartTime.value) params.startTime = filterStartTime.value
-    if (filterEndTime.value) params.endTime = filterEndTime.value
 
     const res = await api.get('/sys/operationLog/list', { params })
     if (res.data.success) {
@@ -170,7 +182,7 @@ function search() { pageNo.value = 1; fetchLogs() }
 
 function resetFilters() {
   filterAccount.value = ''; filterType.value = ''
-  filterStartTime.value = ''; filterEndTime.value = ''
+  filterStartTime.value = weekAgoStr(); filterEndTime.value = todayStr()
   pageNo.value = 1; fetchLogs()
 }
 
@@ -179,7 +191,11 @@ function goPage(p) {
   pageNo.value = p; fetchLogs()
 }
 
-onMounted(() => { fetchLogs() })
+onMounted(() => {
+  filterStartTime.value = weekAgoStr()
+  filterEndTime.value = todayStr()
+  fetchLogs()
+})
 </script>
 
 <style scoped>

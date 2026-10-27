@@ -56,17 +56,17 @@
             </li>
           </ul>
           <Pagination
-            :total="blades.length"
+            :total="total"
             :model-value="currentPage"
             :page-size="pageSize"
-            @update:model-value="currentPage = $event"
+            @update:model-value="onPageChange"
             @update:page-size="onPageSizeChange"
           />
         </template>
       </template>
 
       <!-- 详情 -->
-      <template v-else>
+      <template v-else-if="currentLog">
         <div class="detail-header">
           <button class="back-btn" @click="viewingBlade = false">← 返回叶片列表</button>
           <h2>叶片：{{ currentLog.blade_id || '-' }}</h2>
@@ -132,6 +132,9 @@
           </div>
         </div>
       </template>
+      <template v-else>
+        <div class="empty-state"><p>加载中...</p></div>
+      </template>
     </main>
 
     <!-- 批量下载弹窗 -->
@@ -141,7 +144,7 @@
           <div class="dialog-title">批量下载 — 叶片加工日志</div>
           <div class="dialog-body">
             <div class="dialog-desc">
-              设备：<strong>{{ selectedDevice?.name }}</strong>，当前共 <strong>{{ blades.length }}</strong> 条叶片记录
+              设备：<strong>{{ selectedDevice?.name }}</strong>，共 <strong>{{ total }}</strong> 条叶片记录（当前页 {{ blades.length }} 条）
             </div>
             <div class="dialog-field">
               <label>开始日期</label>
@@ -187,13 +190,12 @@ const selectedBlade = ref(null)
 const viewingBlade = ref(false)
 const loadingBlades = ref(false)
 
-// ===== Pagination =====
+// ===== Pagination（后端分页：列表只持有当前页数据，total 来自后端）=====
 const pageSize = ref(20)
 const currentPage = ref(1)
-const pagedBlades = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return blades.value.slice(start, start + pageSize.value)
-})
+const total = ref(0)
+// 后端已按页返回，直接展示当前页即可
+const pagedBlades = computed(() => blades.value)
 
 const currentLog = ref(null)
 
@@ -279,29 +281,53 @@ onMounted(async () => {
   loadingDevices.value = false
 })
 
+async function fetchBlades() {
+  if (!selectedDevice.value) return
+  loadingBlades.value = true
+  try {
+    const res = await api.get('/iot/process-log/blades', {
+      params: { deviceName: selectedDevice.value.name, page: currentPage.value, pageSize: pageSize.value }
+    })
+    blades.value = res.data.success ? (res.data.results || []) : []
+    total.value = res.data.success ? (res.data.total || 0) : 0
+  } catch (e) {
+    blades.value = []
+    total.value = 0
+  }
+  loadingBlades.value = false
+}
+
 async function selectDevice(d) {
   selectedDevice.value = d
   selectedBlade.value = null
   viewingBlade.value = false
   currentLog.value = null
   currentPage.value = 1
-  loadingBlades.value = true
-  try {
-    const res = await api.get('/iot/process-log/blades', { params: { deviceName: d.name } })
-    blades.value = res.data.success ? (res.data.results || []) : []
-  } catch (e) { blades.value = [] }
-  loadingBlades.value = false
+  await fetchBlades()
+}
+
+function onPageChange(p) {
+  currentPage.value = p
+  fetchBlades()
 }
 
 function onPageSizeChange(size) {
   pageSize.value = size
   currentPage.value = 1
+  fetchBlades()
 }
 
-function selectBlade(b) {
+async function selectBlade(b) {
   selectedBlade.value = b
-  currentLog.value = b.log || null
+  currentLog.value = null
   viewingBlade.value = true
+  try {
+    const res = await api.get(`/iot/process-log/detail/${b.id}`)
+    currentLog.value = res.data && res.data.success ? res.data.data : null
+  } catch (e) {
+    currentLog.value = null
+    alert('加载详情失败: ' + (e?.message || '未知错误'))
+  }
 }
 
 function fmtTs(ts) {
@@ -369,7 +395,7 @@ async function handleExportExcel() {
   const log = currentLog.value; if (!log) return
   try {
     const res = await api.get('/iot/process-log/download', {
-      params: { bladeId: log.blade_id },
+      params: { bladeId: log.blade_id, deviceName: selectedDevice.value?.name },
       responseType: 'blob',
     })
     const contentType = res.headers['content-type'] || ''

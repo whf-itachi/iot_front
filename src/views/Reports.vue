@@ -551,7 +551,7 @@ async function handleExportExcel() {
 }
 
 onMounted(async () => {
-  setRange('month')   // 默认最近一个月
+  setRange('week')   // 默认最近一周
   preset.value = 'custom'
   await fetchDeviceNames()
   await fetchReport(activeTab.value)
