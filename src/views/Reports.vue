@@ -50,8 +50,8 @@
       </div>
 
       <div class="filter-item export-group">
-        <button class="tool-btn" @click="handleExportPDF" :disabled="loading">📄 PDF</button>
-        <button class="tool-btn" @click="handleExportExcel" :disabled="loading">📊 Excel</button>
+        <button class="tool-btn" @click="handleExportPDF" :disabled="loading || exporting">📄 PDF</button>
+        <button class="tool-btn" @click="handleExportExcel" :disabled="loading || exporting">📊 Excel</button>
       </div>
     </div>
 
@@ -147,7 +147,7 @@
     </div>
 
     <!-- 离屏打印/导出区：完全复用页面布局类（kpi-card / data-table / chart-card），PDF 与页面显示一致 -->
-    <div class="report-wrapper" id="report-print-area" style="position:fixed; left:-9999px; top:0; width:1200px; padding:24px; background:var(--bg-page);">
+    <div class="report-wrapper pdf-light" id="report-print-area" style="position:fixed; left:-9999px; top:0; width:1200px; padding:24px; background:var(--bg-page);">
       <div class="report-page" v-if="!loading">
         <section class="pdf-section pdf-header">
           <div class="pdf-doc-title">报表中心</div>
@@ -264,6 +264,7 @@ const filters = ref({ startTime: '', endTime: '', deviceName: '' })
 const preset = ref('custom')
 const activeTab = ref('processing')
 const loading = ref(false)
+const exporting = ref(false)
 const deviceOptions = ref([])
 
 const processing = ref({ total_blades: 0, qualified: 0, qualification_rate: null, avg_after_flatness: null, avg_total_duration: null, alarm_count: 0, per_device: [] })
@@ -368,7 +369,7 @@ function onTab(key) {
 
 // 一次性拉取四类报表数据（供合并导出 PDF / Excel 使用，覆盖当前筛选条件）
 async function fetchAllReports() {
-  loading.value = true
+  exporting.value = true
   try {
     const [p, o, m, a] = await Promise.all([
       api.get('/iot/reports/processing', { params: commonParams() }),
@@ -381,7 +382,7 @@ async function fetchAllReports() {
     if (m.data.success) modelRows.value = m.data.rows || []
     if (a.data.success) alarmTop.value = a.data
   } catch (e) { /* ignore */ }
-  loading.value = false
+  exporting.value = false
 }
 
 // ===== ECharts（仅柱状图） =====
@@ -411,46 +412,52 @@ async function renderChart() {
   if (option) chartInstance.setOption(option)
 }
 
-function buildOption(labels, seriesList, yName) {
+function buildOption(labels, seriesList, yName, light = false) {
   const series = seriesList.map(s => ({
     name: s.name, type: 'bar', data: s.data,
     itemStyle: { borderRadius: [4, 4, 0, 0], color: s.color }, barMaxWidth: 36,
   }))
+  // 导出用浅色配色，屏幕图表保持深色主题
+  const c = light
+    ? { label: '#334155', line: 'rgba(15,23,42,0.15)', split: 'rgba(15,23,42,0.08)', tipBg: '#ffffff', tipBorder: '#e2e8f0', tipText: '#0f172a', legend: '#334155' }
+    : { label: '#a0aec0', line: 'rgba(148,163,184,0.12)', split: 'rgba(148,163,184,0.06)', tipBg: '#1a2940', tipBorder: 'rgba(148,163,184,0.15)', tipText: '#f1f5f9', legend: '#bcc9db' }
   return {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis', backgroundColor: '#1a2940', borderColor: 'rgba(148,163,184,0.15)', textStyle: { color: '#f1f5f9' } },
-    legend: { data: seriesList.map(s => s.name), textStyle: { color: '#bcc9db' }, top: 0 },
+    tooltip: { trigger: 'axis', backgroundColor: c.tipBg, borderColor: c.tipBorder, textStyle: { color: c.tipText } },
+    legend: { data: seriesList.map(s => s.name), textStyle: { color: c.legend }, top: 0 },
     grid: { left: 60, right: 30, top: 40, bottom: 80 },
     xAxis: {
       type: 'category', data: labels,
-      axisLabel: { color: '#a0aec0', rotate: labels.length > 8 ? 45 : 0, fontSize: 10 },
-      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.12)' } },
+      axisLabel: { color: c.label, rotate: labels.length > 8 ? 45 : 0, fontSize: 10 },
+      axisLine: { lineStyle: { color: c.line } },
     },
     yAxis: {
-      type: 'value', name: yName, nameTextStyle: { color: '#a0aec0' },
-      axisLabel: { color: '#a0aec0' }, splitLine: { lineStyle: { color: 'rgba(148,163,184,0.06)' } },
+      type: 'value', name: yName, nameTextStyle: { color: c.label },
+      axisLabel: { color: c.label }, splitLine: { lineStyle: { color: c.split } },
     },
     series,
   }
 }
 
 // 根据当前数据生成某类报表的 ECharts 配置（型号 / 报警），供离屏导出与打印复用
-function chartOption(type) {
+function chartOption(type, light = false) {
   if (type === 'model') {
     return buildOption(
       modelRows.value.map(r => r.model),
       [
-        { name: '叶片数', data: modelRows.value.map(r => r.total), color: '#60c7f3' },
-        { name: '合格数', data: modelRows.value.map(r => r.qualified), color: '#2aef84' },
+        { name: '叶片数', data: modelRows.value.map(r => r.total), color: light ? '#0ea5e9' : '#60c7f3' },
+        { name: '合格数', data: modelRows.value.map(r => r.qualified), color: light ? '#16a34a' : '#2aef84' },
       ],
       '数量',
+      light,
     )
   }
   if (type === 'alarm') {
     return buildOption(
       alarmTop.value.items.map(i => i.fault),
-      [{ name: '出现次数', data: alarmTop.value.items.map(i => i.count), color: '#60c7f3' }],
+      [{ name: '出现次数', data: alarmTop.value.items.map(i => i.count), color: light ? '#0ea5e9' : '#60c7f3' }],
       '次数',
+      light,
     )
   }
   return null
@@ -459,7 +466,7 @@ function chartOption(type) {
 // 将图表渲染进指定容器（型号 / 报警），重复调用先销毁旧实例
 async function renderChartInto(el, type) {
   if (!el) return
-  const option = chartOption(type)
+  const option = chartOption(type, true)
   if (!option) return
   const echarts = await import('echarts')
   if (el.__chart) el.__chart.dispose()
@@ -497,7 +504,7 @@ async function buildReportPdf() {
   const sections = Array.from(page.querySelectorAll('.pdf-section'))
   let y = margin
   for (const sec of sections) {
-    const canvas = await html2canvas(sec, { scale: 2, backgroundColor: '#0f172a', logging: false, useCORS: true })
+    const canvas = await html2canvas(sec, { scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true })
     const ratio = canvas.height / canvas.width
     const hMm = contentW * ratio          // 等比缩小：宽度铺满内容区，高度按比例
     const mbPx = parseFloat(getComputedStyle(sec).marginBottom) || 0
@@ -649,4 +656,44 @@ window.addEventListener('resize', () => { chartInstance?.resize() })
   font-size: 17px; color: var(--text-primary); font-weight: 600; margin-bottom: 14px;
   padding-left: 10px; border-left: 4px solid var(--color-primary);
 }
+
+/* 导出专用浅色主题：只作用于离屏导出区，屏幕页面仍保持深色主题。
+   注意：html2canvas 克隆 DOM 时不能可靠解析 CSS 变量覆盖，且表格 td 未设 color 会继承 body 的白色，
+   因此导出区所有文字颜色一律写死为具体深色，不依赖 var()。 */
+.pdf-light {
+  --bg-page: #ffffff;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f5f9;
+  --bg-input: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #1e293b;
+  --text-muted: #334155;
+  --text-placeholder: #475569;
+  --border-default: #e2e8f0;
+  --border-light: #f1f5f9;
+  --color-primary: #0891b2;
+  --color-success-text: #15803d;
+  --color-warning-text: #b45309;
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08);
+  color: #0f172a; /* 兜底：未显式设色的元素（尤其表格 td）不再继承 body 白色 */
+}
+/* 导出区文字统一为黑色系：主文字近黑，辅助文字深灰（均保证白底清晰） */
+.pdf-light .pdf-doc-title,
+.pdf-light .pdf-section-title,
+.pdf-light .kpi-value,
+.pdf-light .chart-card h3 { color: #0f172a; }
+.pdf-light .pdf-doc-sub,
+.pdf-light .kpi-label,
+.pdf-light .kpi-unit,
+.pdf-light .alarm-meta,
+.pdf-light .c-muted { color: #334155; }
+.pdf-light .c-ok { color: #15803d; }
+.pdf-light .c-warn { color: #b45309; }
+/* 表格：表头/单元格文字写死深色，边框加深以便在白底上看清 */
+.pdf-light .data-table th,
+.pdf-light .data-table td {
+  color: #0f172a;
+  border-bottom: 1px solid #cbd5e1;
+}
+.pdf-light .data-table th { background: #f1f5f9; color: #0f172a; }
 </style>

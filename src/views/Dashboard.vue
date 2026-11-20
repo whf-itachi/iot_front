@@ -13,8 +13,16 @@
           </div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">叶片合格率</div>
-          <div class="kpi-value">{{ loading ? '-' : qualification.rate }}<span class="kpi-unit">%</span></div>
+          <div class="kpi-dual">
+            <div class="kpi-col-main">
+              <div class="kpi-label">叶片合格率</div>
+              <div class="kpi-value">{{ loading ? '-' : qualification.rate }}<span class="kpi-unit">%</span></div>
+            </div>
+            <div class="kpi-col-recheck">
+              <div class="kpi-label">复检后合格率</div>
+              <div class="kpi-value recheck-value">100<span class="kpi-unit">%</span></div>
+            </div>
+          </div>
           <div class="kpi-sub">合格 {{ loading ? '-' : qualification.pass }} / {{ loading ? '-' : qualification.total }} 片 (≤0.5mm)</div>
         </div>
         <div class="kpi-card">
@@ -507,6 +515,25 @@ onBeforeUnmount(() => {
   font-weight: 500;
   margin-left: 4px;
   color: var(--text-muted);
+}
+
+.kpi-dual {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.kpi-col-main {
+  flex: 1;
+  min-width: 0;
+}
+.kpi-col-recheck {
+  flex-shrink: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-default);
+  text-align: right;
+}
+.recheck-value {
+  color: var(--color-success-text);
 }
 
 .device-sub {
