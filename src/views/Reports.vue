@@ -4,9 +4,9 @@
       <h2>报表中心</h2>
     </div>
 
-    <!-- 筛选栏：自定义时间区间 + 设备筛选 + 报表类型 -->
+    <!-- 筛选栏：第一行 时间/设备筛选 + 查询 + 报表类型（右对齐）；第二行 OEE 参数（左） + 导出（右） -->
     <div class="filter-bar">
-      <div class="filter-item">
+      <div class="filter-row filter-row-main">
         <div class="preset-group">
           <button
             v-for="p in presets"
@@ -16,135 +16,157 @@
             @click="onPreset(p.key)"
           >{{ p.label }}</button>
         </div>
+
+        <div class="filter-item">
+          <label class="filter-label">开始</label>
+          <input type="date" v-model="filters.startTime" class="filter-input date-input" :disabled="loading" @change="onDateCustom" />
+        </div>
+        <div class="filter-item">
+          <label class="filter-label">结束</label>
+          <input type="date" v-model="filters.endTime" class="filter-input date-input" :disabled="loading" @change="onDateCustom" />
+        </div>
+
+        <div class="filter-item">
+          <label class="filter-label">设备</label>
+          <select v-model="filters.deviceName" class="filter-select" :disabled="loading" @change="onDeviceChange">
+            <option value="">全部设备</option>
+            <option v-for="name in deviceOptions" :key="name" :value="name">{{ name }}</option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <button class="query-btn" @click="onQuery" :disabled="loading">🔍 查询</button>
+        </div>
+
+        <div class="tab-group">
+          <button
+            v-for="t in tabs"
+            :key="t.key"
+            class="tab-btn"
+            :class="{ active: activeTab === t.key }"
+            @click="onTab(t.key)"
+          >{{ t.label }}</button>
+        </div>
       </div>
 
-      <div class="filter-item">
-        <label class="filter-label">开始</label>
-        <input type="date" v-model="filters.startTime" class="filter-input date-input" :disabled="loading" @change="onDateCustom" />
-      </div>
-      <div class="filter-item">
-        <label class="filter-label">结束</label>
-        <input type="date" v-model="filters.endTime" class="filter-input date-input" :disabled="loading" @change="onDateCustom" />
-      </div>
+      <div class="filter-row filter-row-sub">
+        <div class="oee-param-group">
+          <div class="filter-item">
+            <label class="filter-label">计划工时</label>
+            <input type="number" min="0.5" max="24" step="any" v-model="filters.plannedHours" class="filter-input num-input" :disabled="loading" @change="onOeeParamChange" />
+            <span class="filter-suffix">h/天</span>
+          </div>
+          <div class="filter-item">
+            <label class="filter-label">理论节拍</label>
+            <input type="number" min="0.1" step="any" v-model="filters.idealCycle" class="filter-input num-input" :disabled="loading" @change="onIdealCycleChange" />
+            <span class="filter-suffix">分/片</span>
+          </div>
+        </div>
 
-      <div class="filter-item">
-        <label class="filter-label">设备</label>
-        <select v-model="filters.deviceName" class="filter-select" :disabled="loading" @change="onDeviceChange">
-          <option value="">全部设备</option>
-          <option v-for="name in deviceOptions" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </div>
-
-      <div class="filter-item">
-        <button class="query-btn" @click="onQuery" :disabled="loading">🔍 查询</button>
-      </div>
-
-      <div class="filter-item tab-group">
-        <button
-          v-for="t in tabs"
-          :key="t.key"
-          class="tab-btn"
-          :class="{ active: activeTab === t.key }"
-          @click="onTab(t.key)"
-        >{{ t.label }}</button>
-      </div>
-
-      <div class="filter-item export-group">
-        <button class="tool-btn" @click="handleExportPDF" :disabled="loading || exporting">📄 PDF</button>
-        <button class="tool-btn" @click="handleExportExcel" :disabled="loading || exporting">📊 Excel</button>
+        <div class="export-group">
+          <button class="tool-btn" @click="handleExportPDF" :disabled="loading || exporting">📄 PDF</button>
+          <button class="tool-btn" @click="handleExportExcel" :disabled="loading || exporting">📊 Excel</button>
+        </div>
       </div>
     </div>
 
     <div v-if="loading" class="empty-state">加载中...</div>
+
     <div v-else-if="noData" class="empty-state">所选时间段 / 范围内暂无数据</div>
 
-    <!-- 加工统计 -->
-    <div v-else-if="activeTab === 'processing'" class="report-body">
-      <div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-label">叶片总数</div><div class="kpi-value">{{ processing.total_blades }}</div><div class="kpi-unit">片</div></div>
-        <div class="kpi-card"><div class="kpi-label">合格数</div><div class="kpi-value c-ok">{{ processing.qualified }}</div><div class="kpi-unit">片</div></div>
-        <div class="kpi-card"><div class="kpi-label">合格率</div><div class="kpi-value">{{ pct(processing.qualification_rate) }}</div><div class="kpi-unit"></div></div>
-        <div class="kpi-card"><div class="kpi-label">报警次数</div><div class="kpi-value c-warn">{{ processing.alarm_count }}</div><div class="kpi-unit">次</div></div>
-        <div class="kpi-card"><div class="kpi-label">平均加工后平面度</div><div class="kpi-value">{{ num(processing.avg_after_flatness, 3) }}</div><div class="kpi-unit">mm</div></div>
-        <div class="kpi-card"><div class="kpi-label">平均总时长</div><div class="kpi-value">{{ num(processing.avg_total_duration, 1) }}</div><div class="kpi-unit">Min</div></div>
-      </div>
-      <div class="chart-card">
-        <h3>分设备统计</h3>
-        <table class="data-table">
-          <thead><tr><th>设备</th><th>叶片数</th><th>合格数</th><th>合格率</th></tr></thead>
-          <tbody>
-            <tr v-for="d in processing.per_device" :key="d.device_name">
-              <td>{{ d.device_name }}</td><td>{{ d.total }}</td><td>{{ d.qualified }}</td><td>{{ pct(d.qualification_rate) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- OEE 报告 -->
-    <div v-else-if="activeTab === 'oee'" class="report-body">
-      <div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-label">可用率</div><div class="kpi-value c-muted">待采集</div><div class="kpi-unit"></div></div>
-        <div class="kpi-card"><div class="kpi-label">性能率</div><div class="kpi-value c-muted">待采集</div><div class="kpi-unit"></div></div>
-        <div class="kpi-card"><div class="kpi-label">合格率</div><div class="kpi-value c-ok">{{ pct(oee.overall.qualification_rate) }}</div><div class="kpi-unit"></div></div>
-        <div class="kpi-card"><div class="kpi-label">OEE</div><div class="kpi-value c-muted">待采集</div><div class="kpi-unit"></div></div>
-      </div>
-      <div class="chart-card">
-        <h3>分设备 OEE（本期仅合格率维度）</h3>
-        <table class="data-table">
-          <thead><tr><th>设备</th><th>叶片数</th><th>合格数</th><th>可用率</th><th>性能率</th><th>合格率</th><th>OEE</th></tr></thead>
-          <tbody>
-            <tr v-for="d in oee.per_device" :key="d.device_name">
-              <td>{{ d.device_name }}</td><td>{{ d.total }}</td><td>{{ d.qualified }}</td>
-              <td class="c-muted">待采集</td><td class="c-muted">待采集</td><td>{{ pct(d.qualification_rate) }}</td><td class="c-muted">待采集</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 型号统计 -->
-    <div v-else-if="activeTab === 'model'" class="report-body">
-      <div class="chart-card">
-        <div class="card-head">
-          <h3>型号统计（叶片名称前 3 位）</h3>
+    <template v-else>
+      <!-- 加工统计 -->
+      <div v-if="activeTab === 'processing'" class="report-body">
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="kpi-label">叶片总数</div><div class="kpi-value">{{ processing.total_blades }}</div><div class="kpi-unit">片</div></div>
+          <div class="kpi-card"><div class="kpi-label">合格数</div><div class="kpi-value c-ok">{{ processing.qualified }}</div><div class="kpi-unit">片</div></div>
+          <div class="kpi-card"><div class="kpi-label">合格率</div><div class="kpi-value">{{ pct(processing.qualification_rate) }}</div><div class="kpi-unit"></div></div>
+          <div class="kpi-card"><div class="kpi-label">报警次数</div><div class="kpi-value c-warn">{{ processing.alarm_count }}</div><div class="kpi-unit">次</div></div>
+          <div class="kpi-card"><div class="kpi-label">平均加工后平面度</div><div class="kpi-value">{{ num(processing.avg_after_flatness, 3) }}</div><div class="kpi-unit">mm</div></div>
+          <div class="kpi-card"><div class="kpi-label">平均总时长</div><div class="kpi-value">{{ num(processing.avg_total_duration, 1) }}</div><div class="kpi-unit">Min</div></div>
         </div>
-        <div ref="chartBoxRef" class="chart-box"></div>
-      </div>
-      <div class="chart-card">
-        <h3>型号明细</h3>
-        <table class="data-table">
-          <thead><tr><th>型号（前3位）</th><th>叶片数</th><th>合格数</th><th>合格率</th><th>平均加工后平面度(mm)</th></tr></thead>
-          <tbody>
-            <tr v-for="r in modelRows" :key="r.model">
-              <td>{{ r.model }}</td><td>{{ r.total }}</td><td>{{ r.qualified }}</td><td>{{ pct(r.qualification_rate) }}</td><td>{{ num(r.avg_after_flatness, 3) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- 报警频次 Top10 -->
-    <div v-else-if="activeTab === 'alarm'" class="report-body">
-      <div class="chart-card">
-        <div class="card-head">
-          <h3>报警频次 Top10</h3>
+        <div class="chart-card">
+          <h3>分设备统计</h3>
+          <table class="data-table">
+            <thead><tr><th>设备</th><th>叶片数</th><th>合格数</th><th>合格率</th></tr></thead>
+            <tbody>
+              <tr v-for="d in processing.per_device" :key="d.device_name">
+                <td>{{ d.device_name }}</td><td>{{ d.total }}</td><td>{{ d.qualified }}</td><td>{{ pct(d.qualification_rate) }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div ref="chartBoxRef" class="chart-box"></div>
-        <div class="alarm-meta">告警记录总数（非空）：{{ alarmTop.total_records }} 条 ｜ 不同故障类型：{{ alarmTop.distinct_faults }} 类</div>
       </div>
-      <div class="chart-card">
-        <h3>Top10 明细</h3>
-        <table class="data-table">
-          <thead><tr><th>排名</th><th>故障类型</th><th>出现次数</th></tr></thead>
-          <tbody>
-            <tr v-for="(it, i) in alarmTop.items" :key="it.fault">
-              <td>{{ i + 1 }}</td><td>{{ it.fault }}</td><td>{{ it.count }}</td>
-            </tr>
+
+      <!-- OEE 报告 -->
+      <div v-else-if="activeTab === 'oee'" class="report-body">
+        <div class="kpi-row">
+          <div class="kpi-card"><div class="kpi-label">可用率</div><div class="kpi-value">{{ pct(oee.overall.availability) }}</div><div class="kpi-unit"></div></div>
+          <div class="kpi-card"><div class="kpi-label">性能率</div><div class="kpi-value">{{ pct(oee.overall.performance) }}</div><div class="kpi-unit"></div></div>
+          <div class="kpi-card"><div class="kpi-label">质量合格率</div><div class="kpi-value c-ok">{{ pct(oee.overall.qualification_rate) }}</div><div class="kpi-unit"></div></div>
+          <div class="kpi-card"><div class="kpi-label">OEE</div><div class="kpi-value">{{ pct(oee.overall.oee) }}</div><div class="kpi-unit"></div></div>
+        </div>
+        <div class="oee-formula">
+          <div>可用率 = 加工占用总时长 ÷ (有生产天数 × {{ oee.planned_hours || 8 }}h) ｜ 性能率 = 理论节拍 × 加工片数 ÷ 加工占用总时长 ｜ 质量率 = 合格片数 ÷ 总片数（平面度 ≤ 0.5mm） ｜ OEE = 三者乘积（占用时长 = 加工结束 − 加工开始）</div>
+          <div v-if="oee.productive_days" class="oee-formula-detail">有生产 {{ oee.productive_days }} 天 × {{ oee.planned_hours || 8 }}h = {{ oee.planned_minutes }} 分钟（计划工时） ｜ 设备 {{ oee.device_count }} 台 ｜ 加工占用总时长 {{ oee.total_duration_minutes }} 分钟 ｜ 理论节拍 {{ oee.ideal_cycle_minutes }} 分钟（{{ oee.ideal_cycle_source === 'custom' ? '客户输入' : '平均占用时长' + (oee.auto_cycle_minutes ? ' ' + oee.auto_cycle_minutes : '') + '，默认' }}）</div>
+        </div>
+        <div class="chart-card">
+          <h3>分设备 OEE</h3>
+          <table class="data-table">
+            <thead><tr><th>设备</th><th>叶片数</th><th>合格数</th><th>可用率</th><th>性能率</th><th>合格率</th><th>OEE</th></tr></thead>
+            <tbody>
+              <tr v-for="d in oee.per_device" :key="d.device_name">
+                <td>{{ d.device_name }}</td><td>{{ d.total }}</td><td>{{ d.qualified }}</td>
+                <td>{{ pct(d.availability) }}</td><td>{{ pct(d.performance) }}</td><td>{{ pct(d.qualification_rate) }}</td><td>{{ pct(d.oee) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 型号统计 -->
+      <div v-else-if="activeTab === 'model'" class="report-body">
+        <div class="chart-card">
+          <div class="card-head">
+            <h3>型号统计（叶片名称前 3 位）</h3>
+          </div>
+          <div ref="screenModelChartRef" class="chart-box"></div>
+        </div>
+        <div class="chart-card">
+          <h3>型号明细</h3>
+          <table class="data-table">
+            <thead><tr><th>型号（前3位）</th><th>叶片数</th><th>合格数</th><th>合格率</th><th>平均加工后平面度(mm)</th></tr></thead>
+            <tbody>
+              <tr v-for="r in modelRows" :key="r.model">
+                <td>{{ r.model }}</td><td>{{ r.total }}</td><td>{{ r.qualified }}</td><td>{{ pct(r.qualification_rate) }}</td><td>{{ num(r.avg_after_flatness, 3) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 报警频次 Top10 -->
+      <div v-else-if="activeTab === 'alarm'" class="report-body">
+        <div class="chart-card">
+          <div class="card-head">
+            <h3>报警频次 Top10</h3>
+          </div>
+          <div ref="screenAlarmChartRef" class="chart-box"></div>
+          <div class="alarm-meta">告警记录总数（非空）：{{ alarmTop.total_records }} 条 ｜ 不同故障类型：{{ alarmTop.distinct_faults }} 类</div>
+        </div>
+        <div class="chart-card">
+          <h3>Top10 明细</h3>
+          <table class="data-table">
+            <thead><tr><th>排名</th><th>故障类型</th><th>出现次数</th></tr></thead>
+            <tbody>
+              <tr v-for="(it, i) in alarmTop.items" :key="it.fault">
+                <td>{{ i + 1 }}</td><td>{{ it.fault }}</td><td>{{ it.count }}</td>
+              </tr>
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </template>
 
     <!-- 离屏打印/导出区：完全复用页面布局类（kpi-card / data-table / chart-card），PDF 与页面显示一致 -->
     <div class="report-wrapper pdf-light" id="report-print-area" style="position:fixed; left:-9999px; top:0; width:1200px; padding:24px; background:var(--bg-page);">
@@ -182,19 +204,23 @@
         <section class="pdf-section">
           <h3 class="pdf-section-title">二、设备OEE报告</h3>
           <div class="kpi-row">
-            <div class="kpi-card"><div class="kpi-label">可用率</div><div class="kpi-value c-muted">待采集</div><div class="kpi-unit"></div></div>
-            <div class="kpi-card"><div class="kpi-label">性能率</div><div class="kpi-value c-muted">待采集</div><div class="kpi-unit"></div></div>
-            <div class="kpi-card"><div class="kpi-label">合格率</div><div class="kpi-value c-ok">{{ pct(oee.overall.qualification_rate) }}</div><div class="kpi-unit"></div></div>
-            <div class="kpi-card"><div class="kpi-label">OEE</div><div class="kpi-value c-muted">待采集</div><div class="kpi-unit"></div></div>
+            <div class="kpi-card"><div class="kpi-label">可用率</div><div class="kpi-value">{{ pct(oee.overall.availability) }}</div><div class="kpi-unit"></div></div>
+            <div class="kpi-card"><div class="kpi-label">性能率</div><div class="kpi-value">{{ pct(oee.overall.performance) }}</div><div class="kpi-unit"></div></div>
+            <div class="kpi-card"><div class="kpi-label">质量合格率</div><div class="kpi-value c-ok">{{ pct(oee.overall.qualification_rate) }}</div><div class="kpi-unit"></div></div>
+            <div class="kpi-card"><div class="kpi-label">OEE</div><div class="kpi-value">{{ pct(oee.overall.oee) }}</div><div class="kpi-unit"></div></div>
+          </div>
+          <div class="oee-formula">
+            <div>可用率 = 加工占用总时长 ÷ (有生产天数 × {{ oee.planned_hours || 8 }}h) ｜ 性能率 = 理论节拍 × 加工片数 ÷ 加工占用总时长 ｜ 质量率 = 合格片数 ÷ 总片数（平面度 ≤ 0.5mm） ｜ OEE = 三者乘积（占用时长 = 加工结束 − 加工开始）</div>
+            <div v-if="oee.productive_days" class="oee-formula-detail">有生产 {{ oee.productive_days }} 天 × {{ oee.planned_hours || 8 }}h = {{ oee.planned_minutes }} 分钟（计划工时） ｜ 设备 {{ oee.device_count }} 台 ｜ 加工占用总时长 {{ oee.total_duration_minutes }} 分钟 ｜ 理论节拍 {{ oee.ideal_cycle_minutes }} 分钟（{{ oee.ideal_cycle_source === 'custom' ? '客户输入' : '平均占用时长' + (oee.auto_cycle_minutes ? ' ' + oee.auto_cycle_minutes : '') + '，默认' }}）</div>
           </div>
           <div class="chart-card">
-            <h3>分设备 OEE（本期仅合格率维度）</h3>
+            <h3>分设备 OEE</h3>
             <table class="data-table">
               <thead><tr><th>设备</th><th>叶片数</th><th>合格数</th><th>可用率</th><th>性能率</th><th>合格率</th><th>OEE</th></tr></thead>
               <tbody>
                 <tr v-for="d in oee.per_device" :key="d.device_name">
                   <td>{{ d.device_name }}</td><td>{{ d.total }}</td><td>{{ d.qualified }}</td>
-                  <td class="c-muted">待采集</td><td class="c-muted">待采集</td><td>{{ pct(d.qualification_rate) }}</td><td class="c-muted">待采集</td>
+                  <td>{{ pct(d.availability) }}</td><td>{{ pct(d.performance) }}</td><td>{{ pct(d.qualification_rate) }}</td><td>{{ pct(d.oee) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -247,7 +273,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import api from '../api'
 
 const presets = [
@@ -260,22 +286,28 @@ const tabs = [
   { key: 'alarm', label: '报警Top10' },
 ]
 
-const filters = ref({ startTime: '', endTime: '', deviceName: '' })
+const filters = ref({ startTime: '', endTime: '', deviceName: '', plannedHours: 8, idealCycle: '' })
+// 理论节拍仅展示后端算出的平均值；用户是否真的手动改过决定是否作为 custom 传参
+const idealCycleCustom = ref(false)
 const preset = ref('custom')
-const activeTab = ref('processing')
+const activeTab = ref('processing') // 当前选中的报表 tab
 const loading = ref(false)
 const exporting = ref(false)
 const deviceOptions = ref([])
 
 const processing = ref({ total_blades: 0, qualified: 0, qualification_rate: null, avg_after_flatness: null, avg_total_duration: null, alarm_count: 0, per_device: [] })
-const oee = ref({ overall: { qualification_rate: null, total: 0, qualified: 0 }, per_device: [] })
+const oee = ref({
+  overall: { availability: null, performance: null, qualification_rate: null, oee: null, total: 0, qualified: 0 },
+  per_device: [], formula: {}, productive_days: null, planned_hours: 8, planned_minutes: null, device_count: 0, total_duration_minutes: null, ideal_cycle_minutes: null, auto_cycle_minutes: null, ideal_cycle_source: 'average',
+})
 const modelRows = ref([])
 const alarmTop = ref({ items: [], total_records: 0, distinct_faults: 0 })
 
-const chartBoxRef = ref(null)
+// 屏幕图表（深色主题）与离屏 PDF 图表（浅色主题）各自独立
+const screenModelChartRef = ref(null)
+const screenAlarmChartRef = ref(null)
 const modelChartRef = ref(null)
 const alarmChartRef = ref(null)
-let chartInstance = null
 
 const filterLabel = computed(() => {
   const p = []
@@ -296,15 +328,12 @@ function fmtDate(d) {
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
-function setRange(key) {
-  if (key === 'custom') return
-  const end = new Date()
-  const start = new Date()
-  if (key === 'day') start.setDate(end.getDate())
-  else if (key === 'week') start.setDate(end.getDate() - 7)
-  else if (key === 'month') start.setDate(end.getDate() - 30)
-  filters.value.endTime = fmtDate(end)
-  filters.value.startTime = fmtDate(start)
+// 默认时间范围：本月 1 号至今天
+function setThisMonth() {
+  const today = new Date()
+  const first = new Date(today.getFullYear(), today.getMonth(), 1)
+  filters.value.startTime = fmtDate(first)
+  filters.value.endTime = fmtDate(today)
 }
 
 function pct(v) { return v == null ? '-' : `${Math.round(v * 100, 2)}%` }
@@ -317,59 +346,17 @@ function num(v, d = 2) {
 function commonParams(extra = {}) {
   const p = { startTime: filters.value.startTime, endTime: filters.value.endTime }
   if (filters.value.deviceName) p.deviceName = filters.value.deviceName
+  // OEE 可调参数：空值/0 不传，后端回退默认（8h / 平均占用时长）
+  if (filters.value.plannedHours != null && filters.value.plannedHours !== '') p.plannedHours = filters.value.plannedHours
+  // 理论节拍：只有用户手动改过才传；展示用的平均值不传，避免被误判为 custom
+  if (idealCycleCustom.value && filters.value.idealCycle !== '' && filters.value.idealCycle != null) {
+    p.idealCycle = filters.value.idealCycle
+  }
   return { ...p, ...extra }
 }
 
-async function fetchReport(tab) {
-  loading.value = true
-  try {
-    if (tab === 'processing') {
-      const res = await api.get('/iot/reports/processing', { params: commonParams() })
-      if (res.data.success) processing.value = res.data
-    } else if (tab === 'oee') {
-      const res = await api.get('/iot/reports/oee', { params: commonParams() })
-      if (res.data.success) oee.value = res.data
-    } else if (tab === 'model') {
-      const res = await api.get('/iot/reports/model', { params: commonParams() })
-      if (res.data.success) modelRows.value = res.data.rows || []
-    } else if (tab === 'alarm') {
-      const res = await api.get('/iot/reports/alarm-top', { params: commonParams({ top: 10 }) })
-      if (res.data.success) alarmTop.value = res.data
-    }
-  } catch (e) { /* ignore */ }
-  loading.value = false
-  await nextTick()
-  if (activeTab.value === 'model' || activeTab.value === 'alarm') renderChart()
-}
-
-function onPreset(key) {
-  preset.value = key
-  setRange(key)
-}
-function onDateCustom() {
-  preset.value = 'custom'
-}
-async function fetchDeviceNames() {
-  try {
-    const res = await api.get('/iot/statistics/device-names')
-    if (res.data.success) deviceOptions.value = res.data.device_names || []
-  } catch (e) { /* ignore */ }
-}
-function onDeviceChange() {
-  // 与日期输入一致：仅记录选择，点击「查询」后才刷新（符合"修改筛选条件后点查询刷新"的规则）
-  preset.value = 'custom'
-}
-function onQuery() {
-  fetchReport(activeTab.value)
-}
-function onTab(key) {
-  activeTab.value = key
-  fetchReport(key)
-}
-
-// 一次性拉取四类报表数据（供合并导出 PDF / Excel 使用，覆盖当前筛选条件）
+// 一次性拉取四类报表数据（页面同屏展示，查询/导出共用）
 async function fetchAllReports() {
-  exporting.value = true
   try {
     const [p, o, m, a] = await Promise.all([
       api.get('/iot/reports/processing', { params: commonParams() }),
@@ -381,35 +368,62 @@ async function fetchAllReports() {
     if (o.data.success) oee.value = o.data
     if (m.data.success) modelRows.value = m.data.rows || []
     if (a.data.success) alarmTop.value = a.data
+    syncIdealCycleDisplay()
   } catch (e) { /* ignore */ }
-  exporting.value = false
 }
 
-// ===== ECharts（仅柱状图） =====
-async function renderChart() {
-  const el = chartBoxRef.value
-  if (!el) return
-  if (chartInstance) chartInstance.dispose()
-  const echarts = await import('echarts')
-  chartInstance = echarts.init(el)
-
-  let option
-  if (activeTab.value === 'model') {
-    const labels = modelRows.value.map(r => r.model)
-    const totals = modelRows.value.map(r => r.total)
-    const quals = modelRows.value.map(r => r.qualified)
-    option = buildOption(labels, [
-      { name: '叶片数', data: totals, color: '#60c7f3' },
-      { name: '合格数', data: quals, color: '#2aef84' },
-    ], '数量')
-  } else if (activeTab.value === 'alarm') {
-    const labels = alarmTop.value.items.map(i => i.fault)
-    const counts = alarmTop.value.items.map(i => i.count)
-    option = buildOption(labels, [
-      { name: '出现次数', data: counts, color: '#60c7f3' },
-    ], '次数')
+function onPreset(key) {
+  preset.value = key
+  if (key === 'month') setThisMonth()
+}
+function onDateCustom() {
+  preset.value = 'custom'
+}
+async function fetchDeviceNames() {
+  try {
+    const res = await api.get('/iot/statistics/device-names')
+    if (res.data.success) deviceOptions.value = res.data.device_names || []
+  } catch (e) { /* ignore */ }
+}
+function onDeviceChange() {
+  preset.value = 'custom'
+}
+function onOeeParamChange() {
+  // 与其它筛选项一致：修改后点「查询」才刷新
+  preset.value = 'custom'
+}
+function onIdealCycleChange() {
+  // 用户手动改动过理论节拍，之后的查询/导出都按自定义值传给后端
+  idealCycleCustom.value = true
+  preset.value = 'custom'
+}
+// 数据加载后，把后端算出的平均占用时长填入输入框供展示（不视为自定义）
+function syncIdealCycleDisplay() {
+  if (!idealCycleCustom.value && oee.value.auto_cycle_minutes != null) {
+    filters.value.idealCycle = oee.value.auto_cycle_minutes
   }
-  if (option) chartInstance.setOption(option)
+}
+async function onQuery() {
+  loading.value = true
+  await fetchAllReports()
+  loading.value = false
+  await nextTick()
+  await renderActiveChart()
+}
+
+// ===== Tab 切换：点击按钮切换下方报表内容 =====
+async function onTab(key) {
+  if (key === activeTab.value) return
+  activeTab.value = key
+  await nextTick()
+  await renderActiveChart()
+}
+
+// ===== ECharts（屏幕深色 + 离屏浅色，各自独立实例） =====
+// 只渲染当前 tab 对应的屏幕图表（型号 / 报警 tab 才有图表）
+async function renderActiveChart() {
+  if (activeTab.value === 'model') await renderChartInto(screenModelChartRef.value, 'model', false)
+  else if (activeTab.value === 'alarm') await renderChartInto(screenAlarmChartRef.value, 'alarm', false)
 }
 
 function buildOption(labels, seriesList, yName, light = false) {
@@ -464,9 +478,10 @@ function chartOption(type, light = false) {
 }
 
 // 将图表渲染进指定容器（型号 / 报警），重复调用先销毁旧实例
-async function renderChartInto(el, type) {
+// light=true 用浅色主题（离屏 PDF），false 用深色主题（屏幕）
+async function renderChartInto(el, type, light = true) {
   if (!el) return
-  const option = chartOption(type, true)
+  const option = chartOption(type, light)
   if (!option) return
   const echarts = await import('echarts')
   if (el.__chart) el.__chart.dispose()
@@ -475,12 +490,12 @@ async function renderChartInto(el, type) {
   el.__chart.resize()
 }
 
-// 导出/打印前的准备：确保四类数据按当前筛选条件加载，并把型号/报警图表渲染进离屏区
+// 导出/打印前的准备：仅刷新离屏区数据与图表，不触碰 loading，避免页面主体被卸载
 async function prepareOffline() {
   await fetchAllReports()
   await nextTick(); await nextTick()
-  await renderChartInto(modelChartRef.value, 'model')
-  await renderChartInto(alarmChartRef.value, 'alarm')
+  await renderChartInto(modelChartRef.value, 'model', true)
+  await renderChartInto(alarmChartRef.value, 'alarm', true)
   await nextTick()
 }
 
@@ -530,7 +545,12 @@ async function buildReportPdf() {
 }
 
 async function handleExportPDF() {
-  await buildReportPdf()
+  exporting.value = true
+  try {
+    await buildReportPdf()
+  } finally {
+    exporting.value = false
+  }
 }
 
 async function handleExportExcel() {
@@ -558,14 +578,30 @@ async function handleExportExcel() {
 }
 
 onMounted(async () => {
-  setRange('week')   // 默认最近一周
+  setThisMonth()   // 默认本月 1 号至今天
   preset.value = 'custom'
   await fetchDeviceNames()
-  await fetchReport(activeTab.value)
+  loading.value = true
+  await fetchAllReports()
+  loading.value = false
+  await nextTick()
+  await renderActiveChart()
 })
 
-onBeforeUnmount(() => { chartInstance?.dispose() })
-window.addEventListener('resize', () => { chartInstance?.resize() })
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  screenModelChartRef.value?.__chart?.dispose()
+  screenAlarmChartRef.value?.__chart?.dispose()
+  modelChartRef.value?.__chart?.dispose()
+  alarmChartRef.value?.__chart?.dispose()
+})
+function handleResize() {
+  screenModelChartRef.value?.__chart?.resize()
+  screenAlarmChartRef.value?.__chart?.resize()
+  modelChartRef.value?.__chart?.resize()
+  alarmChartRef.value?.__chart?.resize()
+}
+window.addEventListener('resize', handleResize)
 </script>
 
 <style scoped>
@@ -574,20 +610,27 @@ window.addEventListener('resize', () => { chartInstance?.resize() })
 .page-header h2 { font-size: 20px; color: var(--text-primary); font-weight: 700; }
 
 .filter-bar {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+  display: flex; flex-direction: column; gap: 10px;
   margin-bottom: 20px; padding: 10px 14px;
   background: var(--bg-card); border: 1px solid var(--border-default);
   border-radius: 10px; box-shadow: var(--shadow-card);
 }
+.filter-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-height: 34px; }
 .filter-item { display: flex; flex-direction: row; align-items: center; gap: 6px; flex-shrink: 0; }
 .filter-label { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
-.filter-select, .date-input {
-  height: 34px; min-width: 120px; padding: 0 10px;
+.filter-select, .date-input, .num-input {
+  height: 34px; padding: 0 10px;
   background: var(--bg-hover); border: 1px solid var(--border-default);
   border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;
 }
-.filter-select:focus, .date-input:focus { border-color: var(--border-focus); }
-.filter-select:disabled, .date-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.filter-select, .date-input { min-width: 120px; }
+.filter-select:focus, .date-input:focus, .num-input:focus { border-color: var(--border-focus); }
+.filter-select:disabled, .date-input:disabled, .num-input:disabled { opacity: 0.6; cursor: not-allowed; }
+.num-input { width: 68px; min-width: 68px; padding: 0 6px; text-align: center; -moz-appearance: textfield; }
+.num-input::-webkit-outer-spin-button, .num-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.filter-suffix { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+/* 第二行左侧：OEE 两个可调参数 */
+.oee-param-group { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
 .preset-group, .tab-group, .export-group { display: flex; gap: 4px; }
 .preset-btn, .tab-btn {
@@ -599,8 +642,8 @@ window.addEventListener('resize', () => { chartInstance?.resize() })
 .preset-btn.active, .tab-btn.active {
   background: var(--gradient-primary); color: #0b1221; border-color: transparent; font-weight: 600;
 }
-.tab-group { margin-left: 4px; padding-left: 12px; border-left: 1px solid var(--border-default); }
-.export-group { margin-left: auto; }
+/* 第一行报表 tab 与第二行导出按钮均靠右，与左侧筛选项/参数形成左右对称 */
+.tab-group, .export-group { margin-left: auto; }
 
 .tool-btn {
   height: 34px; padding: 0 12px; background: var(--bg-hover); border: 1px solid var(--border-default);
@@ -616,6 +659,13 @@ window.addEventListener('resize', () => { chartInstance?.resize() })
 }
 .query-btn:hover:not(:disabled) { opacity: 0.9; }
 .query-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.oee-formula {
+  padding: 12px 16px; font-size: 12px; line-height: 1.9;
+  color: var(--text-muted); background: var(--bg-hover);
+  border: 1px solid var(--border-default); border-radius: 10px;
+}
+.oee-formula-detail { color: var(--text-secondary); margin-top: 2px; }
 
 .report-body { display: flex; flex-direction: column; gap: 20px; }
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
