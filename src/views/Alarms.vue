@@ -9,12 +9,24 @@
     <!-- 查询条件 -->
     <div class="filter-bar">
       <div class="filter-group">
+        <label>开始</label>
+        <input v-model="startDate" type="date" title="留空表示不限开始（含全部历史）" />
+      </div>
+      <div class="filter-group">
+        <label>结束</label>
+        <input v-model="endDate" type="date" title="留空表示不限结束；传入时含当天" />
+      </div>
+      <div class="filter-group">
         <label>设备名称</label>
-        <input v-model="deviceName" type="text" placeholder="模糊查询，留空表示全部" />
+        <input v-model="deviceName" type="text" placeholder="模糊查询" />
+      </div>
+      <div class="filter-group">
+        <label>内容查询</label>
+        <input v-model="alarmKeyword" type="text" class="keyword-input" placeholder="如：铣磨 / 支腿未下落" />
       </div>
       <div class="filter-group">
         <label>叶片名称</label>
-        <input v-model="bladeName" type="text" placeholder="留空表示不按叶片筛选" />
+        <input v-model="bladeName" type="text" placeholder="模糊查询" />
       </div>
       <button class="search-btn" @click="onSearch" :disabled="loading">查询</button>
       <button class="reset-btn" @click="onReset" :disabled="loading">重置</button>
@@ -22,6 +34,12 @@
 
     <!-- 错误提示 -->
     <div v-if="error" class="error-banner">{{ error }}</div>
+
+    <!-- 当前告警时间范围提示 -->
+    <div class="range-banner time-range-banner">
+      当前查询范围：<b>{{ timeRangeLabel }}</b> ｜ 共 <b>{{ total }}</b> 条告警
+      <span v-if="!startDate && !endDate">（日期留空表示查全部历史）</span>
+    </div>
 
     <!-- 叶片加工时间范围（按叶片查询时回显） -->
     <div v-if="bladeRange" class="range-banner">
@@ -88,7 +106,10 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../api'
 
+const startDate = ref('')
+const endDate = ref('')
 const deviceName = ref('')
+const alarmKeyword = ref('')
 const bladeName = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -98,6 +119,13 @@ const bladeRange = ref(null)
 const pageNo = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+
+const timeRangeLabel = computed(() => {
+  if (startDate.value && endDate.value) return `${startDate.value} ~ ${endDate.value}`
+  if (startDate.value) return `${startDate.value} 起至最新`
+  if (endDate.value) return `最早至 ${endDate.value}`
+  return '全部历史'
+})
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize.value) || 1)
 const startRow = computed(() => (total.value === 0 ? 0 : (pageNo.value - 1) * pageSize.value + 1))
@@ -124,7 +152,10 @@ async function fetchAlarms(page) {
   pageNo.value = page
   try {
     const params = {
+      start_date: startDate.value || '',
+      end_date: endDate.value || '',
       device_name: deviceName.value || '',
+      alarm_keyword: alarmKeyword.value || '',
       blade_name: bladeName.value || '',
       page: page,
       page_size: pageSize.value,
@@ -160,7 +191,9 @@ function onSearch() {
 }
 
 function onReset() {
+  setThisMonth()
   deviceName.value = ''
+  alarmKeyword.value = ''
   bladeName.value = ''
   bladeRange.value = null
   pageSize.value = 20
@@ -176,6 +209,15 @@ function goPage(p) {
   fetchAlarms(p)
 }
 
+// 默认时间范围：本月 1 号至今天；清空日期输入框即查全部历史
+function setThisMonth() {
+  const now = new Date()
+  const first = new Date(now.getFullYear(), now.getMonth(), 1)
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  startDate.value = fmt(first)
+  endDate.value = fmt(now)
+}
+
 function fmtTime(ts) {
   if (!ts) return '-'
   try {
@@ -186,6 +228,7 @@ function fmtTime(ts) {
 }
 
 onMounted(() => {
+  setThisMonth()
   fetchAlarms(1)
 })
 </script>
@@ -196,30 +239,35 @@ onMounted(() => {
 .title-block { display: flex; align-items: center; gap: 16px; }
 .page-header h2 { font-size: 20px; color: var(--text-primary); }
 
-.filter-bar { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
-.filter-group { display: flex; gap: 6px; align-items: center; }
-.filter-group label { color: var(--text-muted); font-size: 13px; white-space: nowrap; }
-.filter-group input[type="text"] {
-  padding: 6px 12px; border: 1px solid var(--border-default); border-radius: 6px;
-  background: var(--bg-input); color: var(--text-primary); font-size: 13px; width: 200px;
+/* 所有筛选项与按钮固定在单行，紧凑排布不换行 */
+.filter-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 20px; flex-wrap: nowrap; }
+.filter-group { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.filter-group label { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.filter-group input[type="text"], .filter-group input[type="date"] {
+  height: 30px; padding: 0 8px; border: 1px solid var(--border-default); border-radius: 6px;
+  background: var(--bg-input); color: var(--text-primary); font-size: 12px; width: 160px;
 }
+.filter-group input[type="date"] { width: 125px; }
+.filter-group input.keyword-input { width: 190px; }
 .filter-group input::placeholder { color: var(--text-placeholder); }
 .filter-group input:focus { outline: none; border-color: var(--border-focus); }
 .search-btn {
-  padding: 6px 18px; background: var(--gradient-primary); border: none; color: #0b1221;
-  border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;
+  height: 30px; padding: 0 14px; background: var(--gradient-primary); border: none; color: #0b1221;
+  border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.2s; flex-shrink: 0;
+  margin-left: auto; /* 查询/重置按钮固定靠最右 */
 }
 .search-btn:hover:not(:disabled) { box-shadow: var(--shadow-glow); }
 .search-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .reset-btn {
-  padding: 6px 14px; background: var(--bg-card); border: 1px solid var(--border-default);
-  color: var(--text-muted); border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.2s;
+  height: 30px; padding: 0 10px; background: var(--bg-card); border: 1px solid var(--border-default);
+  color: var(--text-muted); border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; flex-shrink: 0;
 }
 .reset-btn:hover:not(:disabled) { border-color: var(--border-focus); color: var(--color-primary); }
 
 .error-banner { background: var(--color-danger-bg); border: 1px solid rgba(239,68,68,0.25); color: var(--color-danger-text); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
 .range-banner { background: var(--color-info-bg, #16263a); border: 1px solid var(--border-default); color: var(--text-primary); padding: 12px 16px; border-radius: 4px; margin-bottom: 16px; font-size: 13px; }
 .range-banner b { color: var(--color-primary); }
+.time-range-banner { border-left: 3px solid var(--color-primary); }
 
 .table-wrap { background: var(--bg-card); border: 1px solid var(--border-default); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-card); }
 .detail-table { width: 100%; border-collapse: collapse; }
